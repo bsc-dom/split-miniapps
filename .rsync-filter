@@ -1,0 +1,10 @@
+- *.pyc
+- *.pyo
+- __pycache__/
+- .gitignore
+- /.vscode/
+- /.pyenv*/
+- /venv*/
+- .git
+- *.ods
+- .~*
