@@ -1,0 +1,6 @@
+# Sweep executions will overwrite this file, be aware!
+
+export POINTS_PER_FRAGMENT=100000000
+export NUMBER_OF_FRAGMENTS=48
+export USE_SPLIT=1
+export ROUNDROBIN_PERSISTENCE=1
