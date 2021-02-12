@@ -42,7 +42,8 @@ EOF
   APP_PYTHONPATH=${SCRIPT_DIR}/
   # $USER is "built-in", $GROUP is not
   GROUP=$(id -g -n $USER)
-  WORKER_WORKING_DIR=/gpfs/scratch/$GROUP/$USER
+  #WORKER_WORKING_DIR=/gpfs/scratch/$GROUP/$USER
+  WORKER_WORKING_DIR=local_disk
 
   # Define application variables
   graph=$tracing
@@ -65,7 +66,7 @@ EOF
     \
     --cpus_per_node="${CPUS_PER_NODE}" \
     --worker_in_master_cpus="${WORKER_IN_MASTER}" \
-    --scheduler=es.bsc.compss.scheduler.fifodata.FIFODataScheduler \
+    --scheduler=es.bsc.compss.scheduler.fifodata.FIFODataLocationScheduler \
     \
     "${workers_flag}" \
     \
