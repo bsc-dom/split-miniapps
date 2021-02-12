@@ -66,7 +66,7 @@ EOF
     \
     --cpus_per_node="${CPUS_PER_NODE}" \
     --worker_in_master_cpus="${WORKER_IN_MASTER}" \
-    --scheduler=es.bsc.compss.scheduler.fifodata.FIFODataLocationScheduler \
+    --scheduler=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler \
     \
     "${workers_flag}" \
     \
