@@ -5,8 +5,9 @@ import os
 from itertools import cycle
 
 from pycompss.api.task import task
-from pycompss.api.api import compss_wait_on
-from pycompss.api.parameter import COLLECTION_IN
+from pycompss.api.api import compss_wait_on, compss_barrier
+from pycompss.api.reduction import reduction
+from pycompss.api.parameter import COLLECTION_IN, IN
 
 from dataclay import api
 from dataclay.contrib.splitting import split
@@ -33,18 +34,35 @@ NUMBER_OF_KMEANS_ITERATIONS = int(os.getenv("NUMBER_OF_KMEANS_ITERATIONS", "10")
 USE_SPLIT = bool(int(os.environ["USE_SPLIT"]))
 ROUNDROBIN_PERSISTENCE = bool(int(os.environ["ROUNDROBIN_PERSISTENCE"]))
 
+USE_REDUCTION_DECORATOR = bool(int(os.environ["USE_REDUCTION_DECORATOR"]))
+REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "2"))
+
 SEED = 42
 MODE = 'uniform'
 
 #############################################
 #############################################
 @task(partials=COLLECTION_IN, returns=object)
-def recompute_centers(partials):
-    
-    aggr = np.sum(partials, axis=0)
+def recompute_centers_sum(partials):
+    return np.sum(partials, axis=0)
 
+
+if USE_REDUCTION_DECORATOR:
+    # Non-canonical way of applying a decorator programatically
+    recompute_centers_sum = reduction(chunk_size=str(REDUCTION_CHUNK_SIZE))(recompute_centers_sum)
+    # dear reader: despite your reluctance, I assure you this is legit.
+    # p.s.: unless you are wondering why chunk_size parameter is a str. Beats me. COMPSs' doc says so.
+
+
+@task(partials=IN, returns=object)
+def recompute_centers_for_split(partials):
+    return np.sum(partials, axis=0)
+
+
+@task(returns=object)
+def recompute_centers_end(added_partials):
     centers = list()
-    for sum_ in aggr:
+    for sum_ in added_partials:
         # centers with no elements are removed
         if sum_[1] != 0:
             centers.append(sum_[0] / sum_[1])
@@ -52,7 +70,16 @@ def recompute_centers(partials):
 
 
 @task(returns=object)
+def generate_points(num_points, dim, mode, seed, backend=None):
+    fragment = Fragment()
+    fragment.make_persistent(backend_id=backend)    
+    fragment.generate_points(num_points, dim, mode, seed)
+    return fragment
+
+
+@task(returns=object)
 def compute_partition(partition, centers):
+    # Manual approach
     subresults = list()
     for frag in partition:
         partial = frag.partial_sum(centers)
@@ -76,14 +103,16 @@ def kmeans_alg(pointcloud):
 
         if USE_SPLIT:
             for partition in split(pointcloud, split_class=ChunkSplit):
-                partial = compute_partition(partition, centers)
-                partials.append(partial)
+                nested_partial = partition.compute(centers)
+                partials.append(recompute_centers_for_split(nested_partial))
+
         else:
             for fragment in pointcloud.chunks:
                 partial = fragment.partial_sum(centers)
                 partials.append(partial)
 
-        centers = recompute_centers(partials)
+        reduction_step = recompute_centers_sum(partials)
+        centers = recompute_centers_end(reduction_step)
 
         # Ignoring any convergence criteria --always doing all iterations for timing purposes.
         centers = compss_wait_on(centers)
@@ -91,11 +120,6 @@ def kmeans_alg(pointcloud):
         elapsed_time = time.time() - start_t
         print(" ... evaluation time: %f" % elapsed_time)
         tadh["iteration_time"].append(elapsed_time)
-
-        # REMOVEME
-        # I am debugging
-        if it > 3:
-            return
 
     return centers
 
@@ -115,25 +139,25 @@ ROUNDROBIN_PERSISTENCE = {ROUNDROBIN_PERSISTENCE}
 """)
     start_time = time.time()
 
-    # Generate the data
-    pc = PointCloud()
-    pc.make_persistent()
-
     backends = list(api.get_backends_info().keys())
     print("Using the following dataClay backends:\n%s" % backends)
 
+    fragments = list()
     for i, backend in zip(range(NUMBER_OF_FRAGMENTS), cycle(backends)):
         print("Generating fragment #%d" % (i + 1))
         
-        fragment = Fragment()
         if ROUNDROBIN_PERSISTENCE:
-            fragment.make_persistent(backend_id=backend)
+            backend_destination = backend
         else:
-            fragment.make_persistent()
-        
-        fragment.generate_points(POINTS_PER_FRAGMENT, DIMENSIONS, MODE, SEED + i)
+            backend_destination = None
+        fragment = generate_points(POINTS_PER_FRAGMENT, DIMENSIONS, MODE, SEED + i, backend_destination)
+        fragments.append(fragment)
 
-        pc.add_fragment(fragment)
+    # Create the pointcloud data structure
+    pc = PointCloud()
+    # dataClay would have done the implicit compss_wait_on, but I prefer to explicitly wait here
+    pc.chunks = compss_wait_on(fragments)
+    pc.make_persistent()
 
     print("Generation/Load done")
     initialization_time = time.time() - start_time
@@ -157,8 +181,6 @@ ROUNDROBIN_PERSISTENCE = {ROUNDROBIN_PERSISTENCE}
     # --we are just timing the execution.
     centers = kmeans_alg(pointcloud=pc)
 
-    return
-
     end_t = time.time()
 
     kmeans_time = end_t - start_t
@@ -178,8 +200,6 @@ ROUNDROBIN_PERSISTENCE = {ROUNDROBIN_PERSISTENCE}
     print("k-means time #2: %f" % kmeans_time)
     tadh.write_all()
 
-    print(centers[0])
-    print(centers[1])
 
 if __name__ == "__main__":
     main()

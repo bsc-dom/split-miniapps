@@ -6,7 +6,8 @@ import numpy as np
 
 from pycompss.api.task import task
 from pycompss.api.api import compss_wait_on, compss_barrier
-from pycompss.api.parameter import COLLECTION_IN
+from pycompss.api.reduction import reduction
+from pycompss.api.parameter import COLLECTION_IN, IN
 
 from tad4bj.slurm import handler as tadh
 
@@ -21,18 +22,30 @@ DIMENSIONS = int(os.getenv("DIMENSIONS", "500"))
 NUMBER_OF_CENTERS = int(os.getenv("NUMBER_OF_CENTERS", "20"))
 NUMBER_OF_KMEANS_ITERATIONS = int(os.getenv("NUMBER_OF_KMEANS_ITERATIONS", "10"))
 
+USE_REDUCTION_DECORATOR = bool(int(os.environ["USE_REDUCTION_DECORATOR"]))
+REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "2"))
+
 SEED = 42
 MODE = 'uniform'
 
 #############################################
 #############################################
 @task(partials=COLLECTION_IN, returns=object)
-def recompute_centers(partials):
-    
-    aggr = np.sum(partials, axis=0)
+def recompute_centers_sum(partials):
+    return np.sum(partials, axis=0)
 
+
+if USE_REDUCTION_DECORATOR:
+    # Non-canonical way of applying a decorator programatically
+    recompute_centers_sum = reduction(chunk_size=str(REDUCTION_CHUNK_SIZE))(recompute_centers_sum)
+    # dear reader: despite your reluctance, I assure you this is legit.
+    # p.s.: unless you are wondering why chunk_size parameter is a str. Beats me. COMPSs' doc says so.
+
+
+@task(returns=object)
+def recompute_centers_end(added_partials):
     centers = list()
-    for sum_ in aggr:
+    for sum_ in added_partials:
         # centers with no elements are removed
         if sum_[1] != 0:
             centers.append(sum_[0] / sum_[1])
@@ -99,7 +112,8 @@ def kmeans_alg(pointcloud):
             partial = partial_sum(fragment, centers)
             partials.append(partial)
 
-        centers = recompute_centers(partials)
+        reduction_step = recompute_centers_sum(partials)
+        centers = recompute_centers_end(reduction_step)
 
         # Ignoring any convergence criteria --always doing all iterations for timing purposes.
         centers = compss_wait_on(centers)
