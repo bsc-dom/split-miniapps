@@ -5,7 +5,7 @@ import os
 from itertools import cycle
 
 from pycompss.api.task import task
-from pycompss.api.api import compss_wait_on, compss_barrier
+from pycompss.api.api import compss_wait_on
 from pycompss.api.reduction import reduction
 from pycompss.api.parameter import COLLECTION_IN, IN
 
@@ -35,7 +35,7 @@ USE_SPLIT = bool(int(os.environ["USE_SPLIT"]))
 ROUNDROBIN_PERSISTENCE = bool(int(os.environ["ROUNDROBIN_PERSISTENCE"]))
 
 USE_REDUCTION_DECORATOR = bool(int(os.environ["USE_REDUCTION_DECORATOR"]))
-REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "2"))
+REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "48"))
 
 SEED = 42
 MODE = 'uniform'
@@ -85,7 +85,7 @@ def compute_partition(partition, centers):
         partial = frag.partial_sum(centers)
         subresults.append(partial)
 
-    return np.sum(subresults, axis=0)
+    return subresults
 
 
 def kmeans_alg(pointcloud):
@@ -103,7 +103,7 @@ def kmeans_alg(pointcloud):
 
         if USE_SPLIT:
             for partition in split(pointcloud, split_class=ChunkSplit):
-                nested_partial = partition.compute(centers)
+                nested_partial = compute_partition(partition, centers)
                 partials.append(recompute_centers_for_split(nested_partial))
 
         else:
@@ -199,6 +199,8 @@ ROUNDROBIN_PERSISTENCE = {ROUNDROBIN_PERSISTENCE}
     kmeans_time = end_t - start_t
     print("k-means time #2: %f" % kmeans_time)
     tadh.write_all()
+
+    print("First and last vectors of centroids:\n%s\n%s" % (centers[0], centers[-1]))
 
 
 if __name__ == "__main__":

@@ -28,6 +28,7 @@
 {
   "dataclay": 1,
   "use_split": ${USE_SPLIT},
+  "use_reduction_decorator": ${USE_REDUCTION_DECORATOR},
   "roundrobin_persistence": ${ROUNDROBIN_PERSISTENCE},
   "nodes": ${num_nodes},
   "backends_per_node": ${BACKENDS_PER_NODE},
@@ -50,7 +51,7 @@ EOF
   # Define application variables
   graph=$tracing
   log_level="off"
-  #qos_flag="--qos=debug"
+  qos_flag=${QOS_FLAG:---qos=debug}
   workers_flag=""
   constraints=""
 

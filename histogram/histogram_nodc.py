@@ -3,7 +3,9 @@ import numpy as np
 import os
 
 from pycompss.api.task import task
-from pycompss.api.api import compss_barrier, compss_wait_on
+from pycompss.api.api import compss_wait_on, compss_barrier
+from pycompss.api.reduction import reduction
+from pycompss.api.parameter import COLLECTION_IN
 
 from tad4bj.slurm import handler as tadh
 
@@ -16,10 +18,24 @@ POINTS_PER_FRAGMENT = int(os.environ["POINTS_PER_FRAGMENT"])
 NUMBER_OF_FRAGMENTS = int(os.environ["NUMBER_OF_FRAGMENTS"])
 NUMBER_OF_ITERATIONS = int(os.getenv("NUMBER_OF_ITERATIONS", "10"))
 
+USE_REDUCTION_DECORATOR = bool(int(os.environ["USE_REDUCTION_DECORATOR"]))
+REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "48"))
+
 SEED = 420
 
 #############################################
 #############################################
+
+@task(partials=COLLECTION_IN, returns=object)
+def sum_partials(partials):
+    return np.sum(partials, axis=0)
+
+
+if USE_REDUCTION_DECORATOR:
+    # Non-canonical way of applying a decorator programatically
+    sum_partials = reduction(chunk_size=str(REDUCTION_CHUNK_SIZE))(sum_partials)
+    # dear reader: despite your reluctance, I assure you this is legit.
+    # p.s.: unless you are wondering why chunk_size parameter is a str. Beats me. COMPSs' doc says so.
 
 
 @task(returns=object)
@@ -44,9 +60,9 @@ def histogram(experiment):
         partial = partial_histogram(fragment, bins)
         partials.append(partial)
 
-    partials = compss_wait_on(partials)
+    result = sum_partials(partials)
 
-    return np.sum(partials, axis=0)
+    return compss_wait_on(result)
 
 
 def main():

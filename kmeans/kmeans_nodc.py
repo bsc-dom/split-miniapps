@@ -23,7 +23,7 @@ NUMBER_OF_CENTERS = int(os.getenv("NUMBER_OF_CENTERS", "20"))
 NUMBER_OF_KMEANS_ITERATIONS = int(os.getenv("NUMBER_OF_KMEANS_ITERATIONS", "10"))
 
 USE_REDUCTION_DECORATOR = bool(int(os.environ["USE_REDUCTION_DECORATOR"]))
-REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "2"))
+REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "48"))
 
 SEED = 42
 MODE = 'uniform'
@@ -190,6 +190,7 @@ NUMBER_OF_KMEANS_ITERATIONS = {NUMBER_OF_KMEANS_ITERATIONS}
     print("k-means time #2: %f" % kmeans_time)
     tadh.write_all()
     
+    print("First and last vectors of centroids:\n%s\n%s" % (centers[0], centers[-1]))
 
 if __name__ == "__main__":
     main()

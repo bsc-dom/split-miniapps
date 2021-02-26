@@ -6,6 +6,9 @@ from itertools import cycle
 
 from pycompss.api.task import task
 from pycompss.api.api import compss_wait_on
+from pycompss.api.reduction import reduction
+from pycompss.api.parameter import COLLECTION_IN, IN
+
 
 from dataclay import api
 from dataclay.contrib.splitting import split
@@ -30,10 +33,29 @@ NUMBER_OF_ITERATIONS = int(os.getenv("NUMBER_OF_ITERATIONS", "10"))
 USE_SPLIT = bool(int(os.environ["USE_SPLIT"]))
 ROUNDROBIN_PERSISTENCE = bool(int(os.environ["ROUNDROBIN_PERSISTENCE"]))
 
+USE_REDUCTION_DECORATOR = bool(int(os.environ["USE_REDUCTION_DECORATOR"]))
+REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "48"))
+
 SEED = 420
 
 #############################################
 #############################################
+
+@task(partials=COLLECTION_IN, returns=object)
+def sum_partials(partials):
+    return np.sum(partials, axis=0)
+
+
+if USE_REDUCTION_DECORATOR:
+    # Non-canonical way of applying a decorator programatically
+    sum_partials = reduction(chunk_size=str(REDUCTION_CHUNK_SIZE))(sum_partials)
+    # dear reader: despite your reluctance, I assure you this is legit.
+    # p.s.: unless you are wondering why chunk_size parameter is a str. Beats me. COMPSs' doc says so.
+
+
+@task(partials=IN, returns=object)
+def sum_partials_for_split(partials):
+    return np.sum(partials, axis=0)
 
 
 @task(returns=object)
@@ -52,25 +74,26 @@ def compute_partition(partition, bins):
         partial = frag.partial_histogram(bins)
         subresults.append(partial)
 
-    return np.sum(subresults, axis=0)
+    return subresults
 
 
 def histogram(experiment):
     bins = np.concatenate((np.arange(0,10, 0.1), np.arange(10, 50), [np.infty]))
 
     partials = list()
+
     if USE_SPLIT:
         for partition in split(experiment, split_class=ChunkSplit):
             partial = compute_partition(partition, bins)
-            partials.append(partial)
+            partials.append(sum_partials_for_split(partial))
     else:
         for fragment in experiment.chunks:
             partial = fragment.partial_histogram(bins)
             partials.append(partial)
 
-    partials = compss_wait_on(partials)
+    result = sum_partials(partials)
 
-    return np.sum(partials, axis=0)
+    return compss_wait_on(result)
 
 
 def main():
@@ -114,7 +137,6 @@ ROUNDROBIN_PERSISTENCE = {ROUNDROBIN_PERSISTENCE}
     tadh["initialization_time"] = initialization_time
     tadh.write_all()
     tadh["iteration_time"] = list()
-
 
     time.sleep(10)
 
