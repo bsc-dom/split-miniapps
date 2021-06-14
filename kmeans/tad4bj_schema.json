@@ -12,6 +12,7 @@
     ["points_per_fragment", "integer"],
     ["number_of_fragments", "integer"],
     ["use_split", "integer"],
+    ["compute_in_split", "integer"],
     ["use_reduction_decorator", "integer"],
     ["roundrobin_persistence", "integer"]
   ]

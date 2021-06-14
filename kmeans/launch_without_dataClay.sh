@@ -26,6 +26,7 @@
 {
   "dataclay": 0,
   "use_split": 0,
+  "compute_in_split": 0,
   "use_reduction_decorator": ${USE_REDUCTION_DECORATOR},
   "roundrobin_persistence": 0,
   "nodes": ${num_nodes},

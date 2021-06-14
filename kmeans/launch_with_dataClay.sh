@@ -27,6 +27,7 @@
   cat << EOF > $TAD4BJ_JSON
 {
   "dataclay": 1,
+  "compute_in_split": ${COMPUTE_IN_SPLIT},
   "use_split": ${USE_SPLIT},
   "use_reduction_decorator": ${USE_REDUCTION_DECORATOR},
   "roundrobin_persistence": ${ROUNDROBIN_PERSISTENCE},

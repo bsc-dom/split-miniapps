@@ -33,6 +33,7 @@ NUMBER_OF_KMEANS_ITERATIONS = int(os.getenv("NUMBER_OF_KMEANS_ITERATIONS", "10")
 
 USE_SPLIT = bool(int(os.environ["USE_SPLIT"]))
 ROUNDROBIN_PERSISTENCE = bool(int(os.environ["ROUNDROBIN_PERSISTENCE"]))
+COMPUTE_IN_SPLIT = bool(int(os.environ["COMPUTE_IN_SPLIT"]))
 
 USE_REDUCTION_DECORATOR = bool(int(os.environ["USE_REDUCTION_DECORATOR"]))
 REDUCTION_CHUNK_SIZE = int(os.getenv("REDUCTION_CHUNK_SIZE", "48"))
@@ -79,7 +80,6 @@ def generate_points(num_points, dim, mode, seed, backend=None):
 
 @task(returns=object)
 def compute_partition(partition, centers):
-    # Manual approach
     subresults = list()
     for frag in partition:
         partial = frag.partial_sum(centers)
@@ -103,7 +103,10 @@ def kmeans_alg(pointcloud):
 
         if USE_SPLIT:
             for partition in split(pointcloud, split_class=ChunkSplit):
-                nested_partial = compute_partition(partition, centers)
+                if COMPUTE_IN_SPLIT:
+                    nested_partial = partition.compute(centers)
+                else:
+                    nested_partial = compute_partition(partition, centers)
                 partials.append(recompute_centers_for_split(nested_partial))
 
         else:

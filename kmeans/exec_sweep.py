@@ -8,7 +8,7 @@ STORAGE_PROPS_FILE = "cfgfiles/storage_props.cfg"
 
 
 def build_exec_values(points_per_fragment, number_of_fragments, 
-                      use_split=None, roundrobin_persistence=None, 
+                      use_split=None, compute_in_split=None, roundrobin_persistence=None, 
                       use_reduction_decorator=None, extra_args=None):
     with open(EXECUTION_VALUES_FILE, "w") as f:
         f.write("""
@@ -23,6 +23,9 @@ export NUMBER_OF_FRAGMENTS=%d
 
         if use_reduction_decorator is not None:
             f.write("export USE_REDUCTION_DECORATOR=%d\n" % int(use_reduction_decorator))
+
+        if compute_in_split is not None:
+            f.write("export COMPUTE_IN_SPLIT=%d\n" % int(compute_in_split))
 
         if extra_args:
             # At this point extra_args is neither None nor empty, assuming it is a populated dict
@@ -47,37 +50,7 @@ def round_of_execs(points_per_fragment, number_of_fragments,
         newenv["QOS_FLAG"] = " "
 
     build_exec_values(points_per_fragment, number_of_fragments,
-                      use_reduction_decorator=True, 
-                      extra_args=extra_args)
-    subprocess.call("./launch_without_dataClay.sh %d %d %s" 
-                    % (number_of_nodes, execution_time, str(tracing).lower()),
-                    shell=True, env=newenv)
-
-    build_exec_values(points_per_fragment, number_of_fragments,
-                      use_reduction_decorator=False, 
-                      extra_args=extra_args)
-    subprocess.call("./launch_without_dataClay.sh %d %d %s" 
-                    % (number_of_nodes, execution_time, str(tracing).lower()),
-                    shell=True, env=newenv)
-
-    build_exec_values(points_per_fragment, number_of_fragments,
-                      use_split=False, roundrobin_persistence=True,
-                      use_reduction_decorator=True, 
-                      extra_args=extra_args)
-    subprocess.call("./launch_with_dataClay.sh %d %d %s" 
-                    % (number_of_nodes, execution_time, str(tracing).lower()),
-                    shell=True, env=newenv)
-
-    build_exec_values(points_per_fragment, number_of_fragments,
-                      use_split=False, roundrobin_persistence=True,
-                      use_reduction_decorator=False,
-                      extra_args=extra_args)
-    subprocess.call("./launch_with_dataClay.sh %d %d %s" 
-                    % (number_of_nodes, execution_time, str(tracing).lower()),
-                    shell=True, env=newenv)
-
-    build_exec_values(points_per_fragment, number_of_fragments,
-                      use_split=True, roundrobin_persistence=True,
+                      use_split=True, compute_in_split=False, roundrobin_persistence=True,
                       use_reduction_decorator=True,
                       extra_args=extra_args)
     subprocess.call("./launch_with_dataClay.sh %d %d %s" 
@@ -85,7 +58,23 @@ def round_of_execs(points_per_fragment, number_of_fragments,
                     shell=True, env=newenv)
 
     build_exec_values(points_per_fragment, number_of_fragments,
-                      use_split=True, roundrobin_persistence=True,
+                      use_split=True, compute_in_split=False, roundrobin_persistence=True,
+                      use_reduction_decorator=False,
+                      extra_args=extra_args)
+    subprocess.call("./launch_with_dataClay.sh %d %d %s" 
+                    % (number_of_nodes, execution_time, str(tracing).lower()),
+                    shell=True, env=newenv)
+
+    build_exec_values(points_per_fragment, number_of_fragments,
+                      use_split=True, compute_in_split=True, roundrobin_persistence=True,
+                      use_reduction_decorator=True,
+                      extra_args=extra_args)
+    subprocess.call("./launch_with_dataClay.sh %d %d %s" 
+                    % (number_of_nodes, execution_time, str(tracing).lower()),
+                    shell=True, env=newenv)
+
+    build_exec_values(points_per_fragment, number_of_fragments,
+                      use_split=True, compute_in_split=True, roundrobin_persistence=True,
                       use_reduction_decorator=False,
                       extra_args=extra_args)
     subprocess.call("./launch_with_dataClay.sh %d %d %s" 
@@ -97,6 +86,17 @@ if __name__ == "__main__":
 
     # Common storage properties
     build_storage_props()
+
+    # i = 1
+    # number_of_fragments = (2 ** i) * 96
+    # points_per_fragment = 2 ** (17 - i)
+
+    # print("Sending execution with #%d fragments (n_points=%d)"
+    #     % (number_of_fragments, points_per_fragment))
+    
+    # round_of_execs(points_per_fragment, number_of_fragments,
+    #                execution_time=80, tracing=True, clear_qos_flag=False,
+    #                extra_args={"number_of_kmeans_iterations": 2})
 
     for i in range(6):
         number_of_fragments = (2 ** i) * 96
