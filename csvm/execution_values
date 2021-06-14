@@ -1,0 +1,4 @@
+# Sweep executions will overwrite this file, be aware!
+
+export POINTS_PER_FRAGMENT=512
+export NUMBER_OF_FRAGMENTS=768
