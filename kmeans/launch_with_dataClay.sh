@@ -2,11 +2,13 @@
 
   module load gcc/8.1.0
   export COMPSS_PYTHON_VERSION=3-ML
-  module load COMPSs/2.8.1
+  module load COMPSs/2.10
   module load mkl/2018.1
   module load impi/2018.1
   module load opencv/4.1.2
   module load DATACLAY/DevelAlex
+
+  export COMPSS_LOAD_SOURCE=false
 
   # Retrieve script arguments
   num_nodes=${1:-3}

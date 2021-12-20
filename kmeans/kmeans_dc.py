@@ -17,7 +17,7 @@ from dataclay.contrib.splitting import split
 
 from model.fragment import Fragment
 from model.pointcloud import PointCloud
-from model.split import ChunkSplit
+from model.split import GenericSplit
 
 from tad4bj.slurm import handler as tadh
 
@@ -102,7 +102,7 @@ def kmeans_alg(pointcloud):
         start_t = time.time()
 
         if USE_SPLIT:
-            for partition in split(pointcloud, split_class=ChunkSplit):
+            for partition in split(pointcloud, split_class=GenericSplit):
                 if COMPUTE_IN_SPLIT:
                     nested_partial = partition.compute(centers)
                 else:
