@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# mn-data folders are being used for results and logs
+mn-data/

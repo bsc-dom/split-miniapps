@@ -5,7 +5,9 @@
 - /.vscode/
 - /.pyenv*/
 - /venv*/
+- .ipynb_checkpoints/
 - .git
 - *.ods
 - .~*
 - /analysis
+- mn-data/
