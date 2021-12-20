@@ -1,0 +1,20 @@
+{
+  "fields": [
+    ["id", "integer"],
+    ["start_ts", "timestamp"],
+    ["finish_ts", "timestamp"],
+    ["dataclay", "integer"],
+    ["use_split", "integer"],
+    ["nodes", "integer"],
+    ["backends_per_node", "integer"],
+    ["cpus_per_node", "integer"],
+    ["computing_units", "integer"],
+    ["initialization_time", "float"],
+    ["execution_time", "json"],
+    ["split_overhead_time", "float"],
+    ["blocksize", "integer"],
+    ["randomize_pairings", "integer"],
+    ["row_blocks", "integer"],
+    ["col_blocks", "integer"]
+  ]
+}

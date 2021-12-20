@@ -1,0 +1,8 @@
+# Sweep executions will overwrite this file, be aware!
+
+export BLOCKSIZE=128
+export ROW_BLOCKS=8
+export COL_BLOCKS=96
+
+export RANDOMIZE_PAIRINGS=0
+export USE_SPLIT=0
