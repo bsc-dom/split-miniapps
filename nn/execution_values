@@ -1,0 +1,7 @@
+# Sweep executions will overwrite this file, be aware!
+
+export POINTS_PER_BLOCK=1000000
+#export POINTS_PER_BLOCK=10000
+export N_BLOCKS_FIT=192
+export N_BLOCKS_NN=16
+export NUMBER_OF_STEPS=5
