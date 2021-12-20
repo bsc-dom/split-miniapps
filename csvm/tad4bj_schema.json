@@ -4,6 +4,7 @@
     ["start_ts", "timestamp"],
     ["finish_ts", "timestamp"],
     ["dataclay", "integer"],
+    ["use_split", "integer"],
     ["nodes", "integer"],
     ["backends_per_node", "integer"],
     ["cpus_per_node", "integer"],

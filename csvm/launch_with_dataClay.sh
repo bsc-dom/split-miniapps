@@ -2,11 +2,13 @@
 
   module load gcc/8.1.0
   export COMPSS_PYTHON_VERSION=3-ML
-  module load COMPSs/2.8
+  module load COMPSs/2.9
   module load mkl/2018.1
   module load impi/2018.1
   module load opencv/4.1.2
   module load DATACLAY/DevelAlex
+
+  export COMPSS_LOAD_SOURCE=false
 
   # Retrieve script arguments
   num_nodes=${1:-3}
@@ -30,6 +32,7 @@
   "nodes": ${num_nodes},
   "backends_per_node": ${BACKENDS_PER_NODE},
   "cpus_per_node": ${CPUS_PER_NODE},
+  "use_split": ${USE_SPLIT},
   "points_per_fragment": ${POINTS_PER_FRAGMENT},
   "number_of_fragments": ${NUMBER_OF_FRAGMENTS}
 }

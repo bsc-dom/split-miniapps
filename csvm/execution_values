@@ -2,3 +2,4 @@
 
 export POINTS_PER_FRAGMENT=512
 export NUMBER_OF_FRAGMENTS=768
+export USE_SPLIT=False

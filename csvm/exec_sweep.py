@@ -7,13 +7,14 @@ EXECUTION_VALUES_FILE = "execution_values"
 STORAGE_PROPS_FILE = "cfgfiles/storage_props.cfg"
 
 
-def build_exec_values(points_per_fragment, number_of_fragments, 
+def build_exec_values(points_per_fragment, number_of_fragments, use_split=False,
                       extra_args=None):
     with open(EXECUTION_VALUES_FILE, "w") as f:
         f.write("""
 export POINTS_PER_FRAGMENT=%d
 export NUMBER_OF_FRAGMENTS=%d
-""" % (points_per_fragment, number_of_fragments))
+export USE_SPLIT=%d
+""" % (points_per_fragment, number_of_fragments, use_split))
         
         if extra_args:
             # At this point extra_args is neither None nor empty, assuming it is a populated dict
@@ -43,7 +44,13 @@ def round_of_execs(points_per_fragment, number_of_fragments,
                     % (number_of_nodes, execution_time, str(tracing).lower()),
                     shell=True, env=newenv)
 
-    build_exec_values(points_per_fragment, number_of_fragments,
+    build_exec_values(points_per_fragment, number_of_fragments, use_split=True,
+                      extra_args=extra_args)
+    subprocess.call("./launch_with_dataClay.sh %d %d %s" 
+                    % (number_of_nodes, execution_time, str(tracing).lower()),
+                    shell=True, env=newenv)
+
+    build_exec_values(points_per_fragment, number_of_fragments, use_split=False,
                       extra_args=extra_args)
     subprocess.call("./launch_with_dataClay.sh %d %d %s" 
                     % (number_of_nodes, execution_time, str(tracing).lower()),
@@ -51,7 +58,6 @@ def round_of_execs(points_per_fragment, number_of_fragments,
 
 
 if __name__ == "__main__":
-
     # Common storage properties
     build_storage_props()
 
