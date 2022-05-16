@@ -12,8 +12,14 @@
 
   # Retrieve script arguments
   num_nodes=${1:-3}
-  execution_time=${2:-60}
-  tracing=${3:-false}
+  execution_time=${2:-20}
+  tracing=${3:-true}
+
+  if [[ $tracing == "true" ]]  ; then
+    TRACING_FLAG=1
+  else
+    TRACING_FLAG=0
+  fi
 
   # Freeze storage_props into a temporal
   # (allow submission of multiple executions with varying parameters)
@@ -29,13 +35,14 @@
   cat << EOF > $TAD4BJ_JSON
 {
   "dataclay": 1,
+  "tracing": ${TRACING_FLAG},
   "compute_in_split": ${COMPUTE_IN_SPLIT},
   "use_split": ${USE_SPLIT},
-  "use_reduction_decorator": ${USE_REDUCTION_DECORATOR},
-  "roundrobin_persistence": ${ROUNDROBIN_PERSISTENCE},
   "nodes": ${num_nodes},
   "backends_per_node": ${BACKENDS_PER_NODE},
   "cpus_per_node": ${CPUS_PER_NODE},
+  "compss_scheduler": "${COMPSS_SCHEDULER}",
+  "compss_working_dir": "${COMPSS_WORKING_DIR}",
   "points_per_fragment": ${POINTS_PER_FRAGMENT},
   "number_of_fragments": ${NUMBER_OF_FRAGMENTS}
 }
@@ -46,23 +53,27 @@ EOF
   WORK_DIR=${SCRIPT_DIR}/
   APP_CLASSPATH=${SCRIPT_DIR}/
   APP_PYTHONPATH=${SCRIPT_DIR}/
-  # $USER is "built-in", $GROUP is not
-  GROUP=$(id -g -n $USER)
-  #WORKER_WORKING_DIR=/gpfs/scratch/$GROUP/$USER
-  WORKER_WORKING_DIR=local_disk
 
   # Define application variables
   graph=$tracing
   log_level="off"
   qos_flag=${QOS_FLAG:---qos=debug}
-  workers_flag=""
+  # Aggressively limit the memory of the workers
+  workers_flag="--jvm_workers_opts=\"-Xms1000m,-Xmx4000m,-Xmn500m"\"
   constraints=""
 
   WORKER_IN_MASTER=0
 
-  # Those are evaluated at submit time, not at start time...
-  COMPSS_VERSION=`ml whatis COMPSs 2>&1 >/dev/null | awk '{print $1 ; exit}'`
-  DATACLAY_VERSION=`ml whatis DATACLAY 2>&1 >/dev/null | awk '{print $1 ; exit}'`
+  export USE_DATACLAY=1
+
+  if [ "$COMPSS_WORKING_DIR" = "local_disk" ]; then
+    working_dir_params="--worker_working_dir=local_disk"
+  else
+    # $USER is "built-in", $GROUP is not
+    GROUP=$(id -g -n $USER)
+    COMPSS_WORKING_DIR=/gpfs/scratch/$GROUP/$USER
+    working_dir_params="--worker_working_dir=$COMPSS_WORKING_DIR --master_working_dir=$COMPSS_WORKING_DIR --base_log_dir=$COMPSS_WORKING_DIR"
+  fi
 
   # Enqueue job
   enqueue_compss \
@@ -72,11 +83,11 @@ EOF
     \
     --cpus_per_node="${CPUS_PER_NODE}" \
     --worker_in_master_cpus="${WORKER_IN_MASTER}" \
-    --scheduler=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler \
+    --scheduler=$COMPSS_SCHEDULER \
     \
     "${workers_flag}" \
     \
-    --worker_working_dir=$WORKER_WORKING_DIR \
+    $working_dir_params \
     \
     --constraints=${constraints} \
     --tracing="${tracing}" \
@@ -98,7 +109,7 @@ EOF
     \
     --lang=python \
     \
-    "$(pwd)/kmeans_dc.py"
+    "$(pwd)/kmeans.py"
 
 
 # To avoid the clean up of the working directory add this flag:

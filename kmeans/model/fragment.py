@@ -31,32 +31,14 @@ class Fragment(DataClayObject):
             indices = np.argwhere(close_centers == center_idx).flatten()
             partials[center_idx][0] = np.sum(arr[indices], axis=0)
             partials[center_idx][1] = indices.shape[0]
-        
+
         return partials
 
-    @dclayMethod(num_points='int', dim='int', mode='str', seed='int')
-    def generate_points(self, num_points, dim, mode, seed):
-        """
-        Generate a random fragment of the specified number of points using the
-        specified mode and the specified seed. Note that the generation is
-        distributed (the master will never see the actual points).
-        :param num_points: Number of points
-        :param dim: Number of dimensions
-        :param mode: Dataset generation mode
-        :param seed: Random seed
-        :return: Dataset fragment
-        """
-        print("Generating points")
-        # Random generation distributions
-        rand = {
-            'normal': lambda k: np.random.normal(0, 1, k),
-            'uniform': lambda k: np.random.random(k),
-        }
-        r = rand[mode]
+    @dclayMethod(num_points='int', dim='int', seed='int')
+    def generate_points(self, num_points, dim, seed):
         np.random.seed(seed)
-        mat = np.array(
-            [r(dim) for __ in range(num_points)]
-        )
+        mat = np.random.random((num_points, dim))
+
         # Normalize all points between 0 and 1
         mat -= np.min(mat)
         mx = np.max(mat)

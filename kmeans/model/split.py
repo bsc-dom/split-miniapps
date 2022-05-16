@@ -4,8 +4,8 @@ However, I was having some issues regarding model registration and general
 usability of the classes and splits. So that ended up here.
 """
 
-import numpy as np
 from dataclay import DataClayObject, dclayMethod
+import numpy as np
 
 try:
     from pycompss.api.task import task
@@ -14,13 +14,14 @@ except ImportError:
     from dataclay.contrib.dummy_pycompss import task, IN
 
 
-class GenericSplit(DataClayObject):
+class KMeansSplit(DataClayObject):
     """Generic and simple split.
 
     @ClassField _chunks anything
     @ClassField _idx anything
     @ClassField split_brothers list<storageobject>
     @ClassField backend anything
+    @dclayImport numpy as np
     """
 
     @dclayMethod(backend="anything")
@@ -40,26 +41,7 @@ class GenericSplit(DataClayObject):
         self._chunks.append(obj)
         self._idx.append(idx)
 
-    # Note that the return is not serializable, thus the _local flag
-    @dclayMethod(return_="anything", _local=True)
-    def __iter__(self):
-        return iter(self._chunks)
-
-    @dclayMethod(return_="anything")
-    def get_indexes(self):
-        return self._idx
-
-    # Being local is not a technical requirement, but makes sense for
-    # performance reasons.
-    @dclayMethod(return_="anything", _local=True)
-    def enumerate(self):
-        return zip(self._idx, self._chunks)
-
     @task(target_direction=IN, returns=object)
     @dclayMethod(centers="anything", return_="anything")
     def compute(self, centers):
-        subresults = list()
-        for frag in self._chunks:
-            subresults.append(frag.partial_sum(centers))
-
-        return subresults
+        return np.sum([frag.partial_sum(centers) for frag in self._chunks], axis=0)
