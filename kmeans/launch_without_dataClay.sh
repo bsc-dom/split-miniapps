@@ -62,6 +62,7 @@ EOF
 
   WORKER_IN_MASTER=0
 
+  export PYTHONPATH=$PYTHONPATH:~/dislib-trunk
   export USE_DATACLAY=0
 
   if [ "$COMPSS_WORKING_DIR" = "local_disk" ]; then

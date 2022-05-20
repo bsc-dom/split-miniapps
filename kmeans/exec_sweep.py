@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from itertools import product
 import re
 import os
 import subprocess

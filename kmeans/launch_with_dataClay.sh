@@ -64,6 +64,7 @@ EOF
 
   WORKER_IN_MASTER=0
 
+  export PYTHONPATH=$PYTHONPATH:~/dislib
   export USE_DATACLAY=1
 
   if [ "$COMPSS_WORKING_DIR" = "local_disk" ]; then
@@ -77,6 +78,7 @@ EOF
 
   # Enqueue job
   enqueue_compss \
+    --job_dependency=${job_dependency} \
     --job_name=kmeans-split \
     --exec_time="${execution_time}" \
     --num_nodes="${num_nodes}" \
@@ -102,7 +104,7 @@ EOF
     --storage_home=$COMPSS_STORAGE_HOME \
     --prolog="tad4bj,setnow,start_ts" \
     --prolog="tad4bj,setdict,$TAD4BJ_JSON" \
-    --prolog="$DATACLAY_HOME/bin/dataclayprepare,$(pwd)/model/,$(pwd),model,python" \
+    --prolog="$DATACLAY_HOME/bin/dataclayprepare,$(pwd)/../dislib_model/,$(pwd),dislib_model,python" \
     --epilog="tad4bj,setnow,finish_ts" \
     \
     ${extra_tracing_flags} \
