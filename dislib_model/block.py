@@ -1,3 +1,6 @@
+import numpy as np
+from sklearn.metrics import pairwise_distances
+
 from dataclay import DataClayObject, dclayMethod
 
 try:
@@ -16,6 +19,9 @@ class PersistentBlock(DataClayObject):
     and changes values, those won't reflect on the persistent block _unless_
     this method is called from within the same ExecutionEnvironment. It's
     quite a nasty corner case.
+
+    @dclayImport numpy as np
+    @dclayImportFrom sklearn.metrics import pairwise_distances
 
     @ClassField block_data numpy.ndarray
     @ClassField shape anything
@@ -72,3 +78,17 @@ class PersistentBlock(DataClayObject):
     @dclayMethod(rotation_matrix="numpy.ndarray")
     def rotate_in_place(self, rotation_matrix):
         self.block_data = self.block_data @ rotation_matrix
+
+    # To be used by KMeans.
+    @task(target_direction=IN, returns=object)
+    @dclayMethod(centers='numpy.ndarray', return_='anything')
+    def partial_sum(self, centers):
+        partials = np.zeros((centers.shape[0], 2), dtype=object)
+        arr = self.block_data
+        close_centers = pairwise_distances(arr, centers).argmin(axis=1)
+        for center_idx in range(len(centers)):
+            indices = np.argwhere(close_centers == center_idx).flatten()
+            partials[center_idx][0] = np.sum(arr[indices], axis=0)
+            partials[center_idx][1] = indices.shape[0]
+
+        return partials

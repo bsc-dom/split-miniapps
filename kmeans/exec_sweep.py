@@ -107,13 +107,6 @@ def round_of_execs(points_per_fragment, number_of_fragments,
 
         process_completed_job(cp)
 
-    # build_exec_values(points_per_fragment, number_of_fragments, number_of_kmeans_iterations,
-    #                 use_split=False, compute_in_split=False,
-    #                 extra_args=extra_args)
-    # subprocess.call("./launch_without_dataClay.sh %d %d %s" 
-    #                 % (number_of_nodes, execution_time, str(tracing).lower()),
-    #                 shell=True, env=newenv)
-
     newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
     build_exec_values(points_per_fragment, number_of_fragments, number_of_kmeans_iterations,
                       use_split=False, compute_in_split=False,
@@ -132,24 +125,6 @@ if __name__ == "__main__":
     # Common storage properties
     build_storage_props()
 
-    # print()
-    # print("*** Strong scaling")
-    # for i in range(5):
-    #     workers = 2 ** i
-    #     number_of_fragments = BASE_NUMBER_OF_FRAGMENTS
-    #     points_per_fragment = BASE_POINTS_PER_FRAGMENT
-    #     round_of_execs(points_per_fragment, number_of_fragments, 
-    #                    number_of_nodes=workers+1, execution_time=40)
-
-    # print()
-    # print("*** Strong scaling with variable blocksize")
-    # for i in range(5):
-    #     workers = 2 ** i
-    #     number_of_fragments = 48 * workers
-    #     points_per_fragment = BASE_POINTS_PER_FRAGMENT * BASE_NUMBER_OF_FRAGMENTS // number_of_fragments
-    #     round_of_execs(points_per_fragment, number_of_fragments, 
-    #                    number_of_nodes=workers+1, execution_time=30)
-
     print()
     print("*** Weak scaling")
     for i in range(5):
@@ -165,36 +140,8 @@ if __name__ == "__main__":
         workers = 2 ** i
         number_of_fragments = 48 * workers
         points_per_fragment = BIG_POINTS_PER_FRAGMENT
-        round_of_execs(points_per_fragment, number_of_fragments, 
-                       number_of_nodes=workers+1, execution_time=7+5*i)
-
-    print()
-    print("*** Blocksize sweep for 8 nodes")
-    for granularity in [1, 4, 16, 48]:
-        workers = 8
-        number_of_fragments = 48 * workers * granularity
-        points_per_fragment = BIG_POINTS_PER_FRAGMENT // granularity
         round_of_execs(points_per_fragment, number_of_fragments,
-                       eval_split_overhead=True,
-                       number_of_nodes=workers+1, execution_time=60)
-
-    print()
-    print("*** Weak scaling")
-    for i in range(5):
-        workers = 2 ** i
-        number_of_fragments = BASE_NUMBER_OF_FRAGMENTS * workers
-        points_per_fragment = BASE_POINTS_PER_FRAGMENT
-        round_of_execs(points_per_fragment, number_of_fragments,
-                       number_of_nodes=workers+1, execution_time=15*i)
-
-    print()
-    print("*** Weak scaling with big blocks")
-    for i in range(5):
-        workers = 2 ** i
-        number_of_fragments = 48 * workers
-        points_per_fragment = BIG_POINTS_PER_FRAGMENT
-        round_of_execs(points_per_fragment, number_of_fragments, 
-                       number_of_nodes=workers+1, execution_time=15*i)
+                       number_of_nodes=workers+1, execution_time=10+10*i)
 
     print()
     print("*** Blocksize sweep for 8 nodes")

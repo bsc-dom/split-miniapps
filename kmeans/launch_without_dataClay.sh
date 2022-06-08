@@ -62,7 +62,7 @@ EOF
 
   WORKER_IN_MASTER=0
 
-  export PYTHONPATH=$PYTHONPATH:~/dislib-trunk
+  export DISLIB_TO_USE=~/dislib-trunk
   export USE_DATACLAY=0
 
   if [ "$COMPSS_WORKING_DIR" = "local_disk" ]; then
@@ -97,7 +97,7 @@ EOF
     "${qos_flag}" \
     \
     --classpath=${DATACLAY_JAR} \
-    --pythonpath=${APP_PYTHONPATH}:${PYTHONPATH} \
+    --pythonpath=${DISLIB_TO_USE}:/gpfs/home/bsc25/bsc25865/tad4bj/src:${PYTHONPATH} \
     --prolog="tad4bj,setnow,start_ts" \
     --prolog="tad4bj,setdict,$TAD4BJ_JSON" \
     --epilog="tad4bj,setnow,finish_ts" \
