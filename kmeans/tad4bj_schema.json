@@ -10,6 +10,7 @@
     ["cpus_per_node", "integer"],
     ["compss_scheduler", "string"],
     ["compss_working_dir", "string"],
+    ["computing_units", "integer"],
     ["initialization_time", "float"],
     ["iteration_time", "json"],
     ["points_per_fragment", "integer"],

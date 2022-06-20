@@ -23,7 +23,7 @@ COMPSS_ALTERNATIVE = {
     "compss_working_dir": "gpfs"
 }
 
-def build_exec_values(points_per_fragment, number_of_fragments, number_of_kmeans_iterations,
+def build_exec_values(points_per_fragment, number_of_fragments,
                       compss_scheduler=FIFODLOCS,
                       compss_working_dir="local_disk",
                       eval_split_overhead=None,
@@ -35,11 +35,8 @@ export NUMBER_OF_FRAGMENTS=%d
 
 export COMPSS_SCHEDULER=%s
 export COMPSS_WORKING_DIR=%s
-
-export NUMBER_OF_KMEANS_ITERATIONS=%d
 """ % (points_per_fragment, number_of_fragments,
-       compss_scheduler, compss_working_dir,
-       number_of_kmeans_iterations))
+       compss_scheduler, compss_working_dir))
     
         if use_split is not None:
             f.write("export USE_SPLIT=%d\n" % int(use_split))
@@ -64,11 +61,19 @@ CPUS_PER_NODE=%d
 """ % (backends_per_node, cpus_per_node))
 
 
-sbj_jobid = re.compile(r"Submitted batch job ([0-9]+)", re.MULTILINE)
+sbj_jobid = re.compile(r"Submitted batch job (\d+)", re.MULTILINE)
 
 def process_completed_job(completed_process):
     """Store the output into a file for debugging, while also return the jobid."""    
     m = re.search(sbj_jobid, completed_process.stdout.decode("ascii"))
+
+    if m is None:
+        with open("submission.out", "wb") as f:
+            f.write(completed_process.stdout)
+        with open("submission.err", "wb") as f:
+            f.write(completed_process.stderr)
+        raise SystemError("Submission did not return a jobid. Dumping stdout/stderr on submission.{out,err}")
+
     jobid = m[1]
 
     print("Submission of job %s has been finished" % jobid)
@@ -84,8 +89,7 @@ def process_completed_job(completed_process):
 
 def round_of_execs(points_per_fragment, number_of_fragments,
                    number_of_nodes=3, execution_time=80, tracing=False, clear_qos_flag=True,
-                   eval_split_overhead=False, number_of_kmeans_iterations=10,
-                   extra_args=None):
+                   eval_split_overhead=False, extra_args=None):
 
     global LAST_GPFS_JOB
 
@@ -98,7 +102,7 @@ def round_of_execs(points_per_fragment, number_of_fragments,
         newenv["QOS_FLAG"] = " "
 
     for to_split in [True, False]:
-        build_exec_values(points_per_fragment, number_of_fragments, number_of_kmeans_iterations,
+        build_exec_values(points_per_fragment, number_of_fragments,
                         use_split=to_split, compute_in_split=to_split, eval_split_overhead=eval_split_overhead,
                         extra_args=extra_args)
         cp = subprocess.run("./launch_with_dataClay.sh %d %d %s"
@@ -108,7 +112,7 @@ def round_of_execs(points_per_fragment, number_of_fragments,
         process_completed_job(cp)
 
     newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
-    build_exec_values(points_per_fragment, number_of_fragments, number_of_kmeans_iterations,
+    build_exec_values(points_per_fragment, number_of_fragments,
                       use_split=False, compute_in_split=False,
                       extra_args=extra_args, 
                       **COMPSS_ALTERNATIVE)
@@ -124,6 +128,34 @@ if __name__ == "__main__":
 
     # Common storage properties
     build_storage_props()
+
+    print()
+    print("*** Weak scaling")
+    for i in range(5):
+        workers = 2 ** i
+        number_of_fragments = BASE_NUMBER_OF_FRAGMENTS * workers
+        points_per_fragment = BASE_POINTS_PER_FRAGMENT
+        round_of_execs(points_per_fragment, number_of_fragments,
+                       number_of_nodes=workers+1, execution_time=7+5*i)
+
+    print()
+    print("*** Weak scaling with big blocks")
+    for i in range(5):
+        workers = 2 ** i
+        number_of_fragments = 48 * workers
+        points_per_fragment = BIG_POINTS_PER_FRAGMENT
+        round_of_execs(points_per_fragment, number_of_fragments,
+                       number_of_nodes=workers+1, execution_time=10+10*i)
+
+    print()
+    print("*** Blocksize sweep for 8 nodes")
+    for granularity in [1, 4, 16, 48]:
+        workers = 8
+        number_of_fragments = 48 * workers * granularity
+        points_per_fragment = BIG_POINTS_PER_FRAGMENT // granularity
+        round_of_execs(points_per_fragment, number_of_fragments,
+                       eval_split_overhead=True,
+                       number_of_nodes=workers+1, execution_time=60)
 
     print()
     print("*** Weak scaling")

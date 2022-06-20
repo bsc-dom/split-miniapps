@@ -1,14 +1,13 @@
 # Sweep executions will overwrite this file, be aware!
 
-export POINTS_PER_FRAGMENT=64000
-export NUMBER_OF_FRAGMENTS=4608
+export POINTS_PER_FRAGMENT=3072000
+export NUMBER_OF_FRAGMENTS=768
 
 export USE_SPLIT=1
 export COMPUTE_IN_SPLIT=1
-export ROUNDROBIN_PERSISTENCE=1
-export NUMBER_OF_KMEANS_ITERATIONS=5
+export PROFILE_SPLIT=1
 
-#export COMPSS_SCHEDULER=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler
-#export COMPSS_WORKING_DIR=local_disk
-export COMPSS_SCHEDULER=es.bsc.compss.scheduler.fifodatanew.FIFODataScheduler
-export COMPSS_WORKING_DIR=gpfs
+export COMPSS_SCHEDULER=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler
+export COMPSS_WORKING_DIR=local_disk
+#export COMPSS_SCHEDULER=es.bsc.compss.scheduler.fifodatanew.FIFODataScheduler
+#export COMPSS_WORKING_DIR=gpfs

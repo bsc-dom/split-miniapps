@@ -32,6 +32,8 @@ COMPUTE_IN_SPLIT = bool(int(os.environ["COMPUTE_IN_SPLIT"]))
 
 SEED = 42
 
+PROFILE_SPLIT = bool(int(os.getenv("PROFILE_SPLIT", "0")))
+
 #############################################
 #############################################
 
@@ -82,12 +84,23 @@ class KMeansDataClay(BaseEstimator):
         iteration = 0
 
         if USE_SPLIT:
+            if PROFILE_SPLIT:
+                import cProfile
+                pr = cProfile.Profile()
+                pr.enable()
+
             flatten_blocks = [row[0] for row in x._blocks]
 
             from dataclay.contrib.splitting import split_1d
             from dislib_model.split import GenericSplit
 
             self.split = split_1d(flatten_blocks, split_class=GenericSplit, multiplicity=24)
+
+            if PROFILE_SPLIT:
+                from os.path import expanduser
+                pr.disable()
+                pr.dump_stats(expanduser("~/profile_split.dump"))
+                return
 
         while not self._converged(old_centers, iteration):
             old_centers = self.centers.copy()
