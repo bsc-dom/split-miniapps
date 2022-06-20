@@ -1,5 +1,6 @@
 import os
 import time
+import random
 
 import numpy as np
 
@@ -12,6 +13,7 @@ from sklearn.utils import validation
 
 from scipy.spatial.transform import Rotation
 
+from pycompss.api.api import compss_delete_object
 from pycompss.api.constraint import constraint
 from pycompss.api.task import task
 from pycompss.api.api import compss_wait_on, compss_barrier
@@ -23,7 +25,8 @@ from tad4bj.slurm import handler as tadh
 #############################################
 # Constants / experiment values:
 #############################################
-USE_DATACLAY = bool(int(os.environ["USE_DATACLAY"]))
+USE_DATACLAY = bool(int(os.getenv("USE_DATACLAY", "0")))
+USE_SPLIT = bool(int(os.getenv("USE_SPLIT", "0")))
 
 POINTS_PER_BLOCK = int(os.environ["POINTS_PER_BLOCK"])
 N_BLOCKS_FIT = int(os.environ["N_BLOCKS_FIT"])
@@ -67,9 +70,13 @@ def _merge_kqueries(k, *queries):
     return final_dist, final_ind
 
 
-@task(block=INOUT)
-def rotate_block(block, rotation):
-    block = block @ rotation
+# @task(block=INOUT)
+# def rotate_block(block, rotation):
+#     block = block @ rotation
+
+@task(q_blocks={Type: COLLECTION_IN, Depth: 2}, returns=1)
+def perform_np_block(q_blocks):
+    return np.block(q_blocks)
 
 
 class NearestNeighborsDataClay(BaseEstimator):
@@ -82,14 +89,31 @@ class NearestNeighborsDataClay(BaseEstimator):
         if len(x._blocks[0]) != 1:
             raise ValueError("I only know how to work with dsarray of one column")
 
-        flatten_blocks = [row[0] for row in x._blocks]
-
         from dislib_model.nn_fit import PersistentFitStructure
-        for partition in split_1d(flatten_blocks, split_class=SplitItemIndexCoordinator()):
-            nn = PersistentFitStructure()
-            nn.make_persistent()
-            nn.fit_split(partition)
-            self._fit_data.append(nn)
+
+        if USE_SPLIT:
+            flatten_blocks = [row[0] for row in x._blocks]
+
+            for partition in split_1d(flatten_blocks, split_class=SplitItemIndexCoordinator()):
+                print("Creating a PersistentFitStructure on backend %s that encompasses #%d blocks" %
+                       (partition.backend, len(partition._chunks)))
+                nn = PersistentFitStructure()
+                nn.make_persistent(backend_id=partition.backend)
+                nn.fit_split(partition)
+                self._fit_data.append(nn)
+        else:
+            offset = 0
+
+            from itertools import cycle
+            from dataclay.api import get_backends_info
+
+            for backend, row in zip(cycle(list(get_backends_info().keys())), x._iterator(axis=0)):
+                nn = PersistentFitStructure()
+                nn.make_persistent(backend_id=backend)
+                nn.fit(row._blocks, offset)
+                self._fit_data.append(nn)
+                # Carry the offset by counting samples
+                offset += row.shape[0]
     
     def kneighbors(self, x, n_neighbors=None, return_distance=True):
         validation.check_is_fitted(self, '_fit_data')
@@ -101,12 +125,15 @@ class NearestNeighborsDataClay(BaseEstimator):
         indices = []
 
         for q_row in x._iterator(axis=0):
+        #for row_blocks in x._blocks:
             queries = []
 
             for nn_fit_struct in self._fit_data:
                 queries.append(nn_fit_struct.get_kneighbors(q_row._blocks, n_neighbors))
 
+            # compss_delete_object(q_samples)
             dist, ind = _merge_kqueries(n_neighbors, *queries)
+            compss_delete_object(*queries)
             distances.append([dist])
             indices.append([ind])
 
@@ -148,6 +175,9 @@ N_BLOCKS_FIT = {N_BLOCKS_FIT}
 N_BLOCKS_NN = {N_BLOCKS_NN}
 POINT_DIMENSION = {POINT_DIMENSION}
 NUMBER_OF_STEPS = {NUMBER_OF_STEPS}
+
+USE_DATACLAY = {USE_DATACLAY}
+USE_SPLIT = {USE_SPLIT}
 """)
 
     start_time = time.time()
@@ -161,27 +191,17 @@ NUMBER_OF_STEPS = {NUMBER_OF_STEPS}
 
     compss_barrier()
 
-    # The following line solved a bug.
-    # Does it make sense?
+    # The following line solves issues down the road.
+    # Should I have to do that?
     # Not really.
     #
-    # ...
-    #
-    # My wild guess is related to the fact that this forces a compss_wait_on
-    # on the blocks and stores the result, linked to the undefined behaviour
-    # of COMPSs when you run compss_wait_on twice on the same Future object.
+    # This "requirement" is related to the undefined behaviour
+    # of COMPSs when you run compss_wait_on twice on the same 
+    # Future object. Related to the NearestNeighbors 
+    # implementation with persistent objects.
     if USE_DATACLAY:
-        _ = x.collect()
-        _ = xq.collect()
-    # If it works, I won't break it.
-    # Maybe it is no longer necessary.
-    # I won't be the one taking risks. Good luck. Have fun.
-    #
-    # Addendum:
-    # At first only x was collected. But after adding the code that contains
-    # block.rotate_in_place an error was given because xq had future objects.
-    # Thus, xq.collect was also added. What we really want is to have actual
-    # objects instead of futures in the x*._blocks structure.
+        x._blocks = compss_wait_on(x._blocks)
+        xq._blocks = compss_wait_on(xq._blocks)
 
     print("Generation/Load done")
     initialization_time = time.time() - start_time
@@ -192,7 +212,7 @@ NUMBER_OF_STEPS = {NUMBER_OF_STEPS}
     print("-----------------------------------------")
     print("Initialization time: %f" % initialization_time)
 
-    time.sleep(10)
+    time.sleep(20)
 
     # Run fit
     start_t = time.time()
@@ -207,11 +227,20 @@ NUMBER_OF_STEPS = {NUMBER_OF_STEPS}
     fit_time = end_t - start_t
     print("Fit time: %f" % fit_time)
 
+    time.sleep(20)
+
     tadh["initialization_time"] = initialization_time
     tadh["fit_time"] = fit_time
     tadh["kneighbors_time"] = list()
     tadh["rotation_time"] = list()
     tadh.write_all()
+
+    if USE_SPLIT:
+        from dataclay.api import batch_object_info
+        for obj, backend in batch_object_info(nn._fit_data).items():
+            print("Object %r:" % obj)
+            print(" - Backend: %s" % backend)
+            #print(" - #elements: %d" % len(obj._itemindexes))
 
     for _ in range(NUMBER_OF_STEPS):
         # Run a kneighbors
@@ -225,24 +254,24 @@ NUMBER_OF_STEPS = {NUMBER_OF_STEPS}
 
         print("k-neighbors time: %f" % kneighbors_time)
         tadh["kneighbors_time"].append(kneighbors_time)
+        
+        # start_t = time.time()
+        # r = Rotation.from_euler("XYZ", angles=np.random.randint(0, 360, 3), degrees=True).as_matrix()
+        # for row in xq._blocks:
+        #     for block in row:
+        #         if USE_DATACLAY:
+        #             block.rotate_in_place(r)
+        #         else:
+        #             rotate_block(block, r)
 
-        start_t = time.time()
-        r = Rotation.from_euler("XYZ", angles=np.random.randint(0, 360, 3), degrees=True).as_matrix()
-        for row in xq._blocks:
-            for block in row:
-                if USE_DATACLAY:
-                    block.rotate_in_place(r)
-                else:
-                    rotate_block(block, r)
+        # compss_barrier()
+        # end_t = time.time()
 
-        compss_barrier()
-        end_t = time.time()
+        # rotation_time = end_t - start_t
+        # print("rotation time: %f" % rotation_time)
+        # tadh["rotation_time"].append(rotation_time)
 
-        rotation_time = end_t - start_t
-        print("rotation time: %f" % rotation_time)
-        tadh["rotation_time"].append(rotation_time)
-
-        # Write both times for each iteration
+        # Write for each iteration
         tadh.write_all()
 
     print()

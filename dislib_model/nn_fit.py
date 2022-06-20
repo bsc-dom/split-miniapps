@@ -27,20 +27,9 @@ class PersistentFitStructure(DataClayObject):
     def __init__(self):
         self._nn = None
 
-    @dclayMethod()
-    def prepare_dummy_block(self):
-        from dislib_model.block import PersistentBlock
-        self.dummy = PersistentBlock(np.random.random((500000, 3)))
-        self.dummy.make_persistent()
-
     @task(target_direction=INOUT)
     @dclayMethod(partition="storageobject")
     def fit_split(self, partition):
-        ######################################
-        # REMOVEME
-        self.prepare_dummy_block()
-        ######################################
-
         # partition is a split instance
 
         # The following may be hidden by implementing __array__ method in the split object
@@ -57,12 +46,7 @@ class PersistentFitStructure(DataClayObject):
 
     @task(target_direction=INOUT)
     @dclayMethod(blocks="anything", offset="int")
-    def fit(self, blocks, offset):
-        ######################################
-        # REMOVEME
-        self.prepare_dummy_block()
-        ######################################
-        
+    def fit(self, blocks, offset):        
         subdataset = np.block(blocks)
 
         self._nn = NearestNeighbors()
@@ -73,24 +57,9 @@ class PersistentFitStructure(DataClayObject):
         self._itemindexes = np.arange(offset, offset + len(subdataset))
 
     @task(target_direction=IN, q_blocks={Type: COLLECTION_IN, Depth: 2}, returns=tuple)
-    @dclayMethod(_local=True, q_blocks="list", n_neighbors="int", return_="anything")
-    def get_kneighbors_local(self, q_blocks, n_neighbors):
-        return self.get_kneighbors_non_local(None, n_neighbors)
-        q_samples = np.block(q_blocks)
-
-        # Note that the merge requires distances, so we ask for them
-        dist, ind = self._nn.kneighbors(X=q_samples, n_neighbors=n_neighbors)
-        item_indexes = self._itemindexes[ind]
-
-        return dist, item_indexes
-        #            ^****** This converts the local indexes to global ones
-
-    #@task(target_direction=IN, q_blocks={Type: COLLECTION_IN, Depth: 2}, returns=tuple)
     @dclayMethod(q_blocks="list", n_neighbors="int", return_="anything")
-    def get_kneighbors_non_local(self, q_blocks, n_neighbors):
-        #q_samples = np.block(q_blocks)
-        print(q_blocks)
-        q_samples = self.dummy
+    def get_kneighbors(self, q_blocks, n_neighbors):
+        q_samples = np.block(q_blocks)
 
         # Prepare a new structure for the tree walk
         # (due to the lack of readonly/concurrent implementation in the KDTree sklearn implementation)
@@ -100,9 +69,7 @@ class PersistentFitStructure(DataClayObject):
         # Note that the merge requires distances, so we ask for them
         dist, ind = nn.kneighbors(X=q_samples, n_neighbors=n_neighbors)
 
-        item_indexes = self._itemindexes[ind]
-
-        return dist, item_indexes
+        return dist, self._itemindexes[ind]
         #            ^****** This converts the local indexes to global ones
 
     @task(target_direction=IN, q_blocks={Type: COLLECTION_IN, Depth: 2}, returns=1)

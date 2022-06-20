@@ -1,13 +1,29 @@
 #!/usr/bin/env python
 
+import re
 import os
 import subprocess
+import itertools
 
 EXECUTION_VALUES_FILE = "execution_values"
 STORAGE_PROPS_FILE = "cfgfiles/storage_props.cfg"
 
+# The flag is the literal string None for enqueue_compss
+LAST_GPFS_JOB = "None"
+
+# Schedulers:
+FIFODLOCS = "es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler"
+FIFODS = "es.bsc.compss.scheduler.fifodatanew.FIFODataScheduler"
+
+COMPSS_ALTERNATIVE = {
+    "compss_scheduler": FIFODS,
+    "compss_working_dir": "gpfs"
+}
+
 
 def build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
+                      compss_scheduler=FIFODLOCS,
+                      compss_working_dir="local_disk",
                       number_of_steps=5, extra_args=None):
     with open(EXECUTION_VALUES_FILE, "w") as f:
         f.write("""
@@ -15,7 +31,12 @@ export POINTS_PER_BLOCK=%d
 export N_BLOCKS_FIT=%d
 export N_BLOCKS_NN=%d
 export NUMBER_OF_STEPS=%d
-""" % (points_per_block, n_blocks_fit, n_blocks_nn, number_of_steps))
+
+export COMPSS_SCHEDULER=%s
+export COMPSS_WORKING_DIR=%s
+
+""" % (points_per_block, n_blocks_fit, n_blocks_nn, number_of_steps,
+       compss_scheduler, compss_working_dir))
 
         if extra_args:
             # At this point extra_args is neither None nor empty, assuming it is a populated dict
@@ -23,7 +44,7 @@ export NUMBER_OF_STEPS=%d
                 f.write("export %s=%s\n" % (variable.upper(), value))
 
 
-def build_storage_props(backends_per_node=2, cpus_per_node=48, computing_units=4):
+def build_storage_props(backends_per_node=2, cpus_per_node=48, computing_units=1):
     with open(STORAGE_PROPS_FILE, "w") as f:
         f.write("""
 BACKENDS_PER_NODE=%d
@@ -32,32 +53,74 @@ COMPUTING_UNITS=%d
 """ % (backends_per_node, cpus_per_node, computing_units))
 
 
+sbj_jobid = re.compile(r"Submitted batch job (\d+)", re.MULTILINE)
+
+def process_completed_job(completed_process):
+    """Store the output into a file for debugging, while also return the jobid."""    
+    m = re.search(sbj_jobid, completed_process.stdout.decode("ascii"))
+
+    if m is None:
+        with open("submission.out", "wb") as f:
+            f.write(completed_process.stdout)
+        with open("submission.err", "wb") as f:
+            f.write(completed_process.stderr)
+        raise SystemError("Submission did not return a jobid. Dumping stdout/stderr on submission.{out,err}")
+
+    jobid = m[1]
+
+    print("Submission of job %s has been finished" % jobid)
+
+    with open("%s_submit.out" % jobid, "wb") as f:
+        f.write(completed_process.stdout)
+
+    with open("%s_submit.err" % jobid, "wb") as f:
+        f.write(completed_process.stderr)
+
+    return jobid
+
+
 def round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
                    number_of_nodes=3, execution_time=60, tracing=False, clear_qos_flag=True,
                    extra_args=None):
 
-    print("Sending execution to %d workers.\n" 
-            "Total blocks:\n"
+    global LAST_GPFS_JOB
+
+    print("Executing in #%d workers (nodes=%d)" % (number_of_nodes-1, number_of_nodes))
+    print("Total blocks:\n"
             "\t#%d blocks per fit\n"
             "\t#%d blocks per NN\n"
             "Points per block: #%d"
-        % (n_workers, n_blocks_fit, n_blocks_nn, points_per_block))
+        % (n_blocks_fit, n_blocks_nn, points_per_block))
 
     newenv = dict(os.environ)
     if clear_qos_flag:
         newenv["QOS_FLAG"] = " "
 
-    build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
-                      extra_args=extra_args)
-    subprocess.call("./launch_without_dataClay.sh %d %d %s" 
-                    % (number_of_nodes, execution_time, str(tracing).lower()),
-                    shell=True, env=newenv)
+    if extra_args is None:
+        extra_args = dict()
+
+    # for use_split in [0, 1]:
+    #     ea_to_use = extra_args.copy()
+    #     ea_to_use["use_split"] = use_split
+
+    #     build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
+    #                       extra_args=ea_to_use)
+    #     cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
+    #                         % (number_of_nodes, execution_time, str(tracing).lower()),
+    #                         shell=True, env=newenv, capture_output=True)
+    #     process_completed_job(cp)
+
+    newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
 
     build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
-                      extra_args=extra_args)
-    subprocess.call("./launch_with_dataClay.sh %d %d %s" 
-                    % (number_of_nodes, execution_time, str(tracing).lower()),
-                    shell=True, env=newenv)
+                      extra_args=extra_args, 
+                      **COMPSS_ALTERNATIVE)
+    cp = subprocess.run("./launch_without_dataClay.sh %d %d %s" 
+                        % (number_of_nodes, execution_time, str(tracing).lower()),
+                        shell=True, env=newenv, capture_output=True)
+
+    LAST_GPFS_JOB = process_completed_job(cp)
+    print("Using %s for GPFS dependency (COMPSs executions)" % LAST_GPFS_JOB)
 
 
 if __name__ == "__main__":
@@ -65,20 +128,12 @@ if __name__ == "__main__":
     # Common storage properties
     build_storage_props()
 
-    points_per_block = 1000000
+    points_per_block = 500000
 
-    for i in range(5):
+    for i, x_per_worker in itertools.product([0, 1, 2, 3, 4], [24, 48]):
         n_workers = 2 ** i
-        n_blocks_fit = 96 * n_workers
-        n_blocks_nn = 8 * n_workers
+        n_blocks_fit = x_per_worker * n_workers
+        n_blocks_nn = x_per_worker * n_workers
 
         round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
-                       number_of_nodes=n_workers + 1, execution_time=90)
-
-    for i in range(5):
-        n_workers = 2 ** i
-        n_blocks_fit = 48 * n_workers
-        n_blocks_nn = 48 * n_workers
-
-        round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
-                       number_of_nodes=n_workers + 1, execution_time=240)
+                       number_of_nodes=n_workers + 1, execution_time=30+x_per_worker*i)
