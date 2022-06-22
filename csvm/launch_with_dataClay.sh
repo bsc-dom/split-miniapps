@@ -2,7 +2,7 @@
 
   module load gcc/8.1.0
   export COMPSS_PYTHON_VERSION=3-ML
-  module load COMPSs/2.9
+  module load COMPSs/2.10
   module load mkl/2018.1
   module load impi/2018.1
   module load opencv/4.1.2
@@ -13,7 +13,13 @@
   # Retrieve script arguments
   num_nodes=${1:-3}
   execution_time=${2:-60}
-  tracing=${3:-false}
+  tracing=${3:-true}
+
+  if [[ $tracing == "true" ]]  ; then
+    TRACING_FLAG=1
+  else
+    TRACING_FLAG=0
+  fi
 
   # Freeze storage_props into a temporal
   # (allow submission of multiple executions with varying parameters)
@@ -29,6 +35,7 @@
   cat << EOF > $TAD4BJ_JSON
 {
   "dataclay": 1,
+  "tracing": ${TRACING_FLAG},
   "nodes": ${num_nodes},
   "backends_per_node": ${BACKENDS_PER_NODE},
   "cpus_per_node": ${CPUS_PER_NODE},
@@ -43,40 +50,43 @@ EOF
   WORK_DIR=${SCRIPT_DIR}/
   APP_CLASSPATH=${SCRIPT_DIR}/
   APP_PYTHONPATH=${SCRIPT_DIR}/
-  # $USER is "built-in", $GROUP is not
-  GROUP=$(id -g -n $USER)
-  #WORKER_WORKING_DIR=/gpfs/scratch/$GROUP/$USER
-  WORKER_WORKING_DIR=local_disk
 
   # Define application variables
   graph=$tracing
   log_level="off"
   qos_flag=${QOS_FLAG:---qos=debug}
-  workers_flag=""
+  # Aggressively limit the memory of the workers
+  workers_flag="--jvm_workers_opts=\"-Xms1000m,-Xmx4000m,-Xmn500m"\"
   constraints=""
 
   WORKER_IN_MASTER=0
 
-  # Those are evaluated at submit time, not at start time...
-  COMPSS_VERSION=`ml whatis COMPSs 2>&1 >/dev/null | awk '{print $1 ; exit}'`
-  DATACLAY_VERSION=`ml whatis DATACLAY 2>&1 >/dev/null | awk '{print $1 ; exit}'`
+  export DISLIB_TO_USE=~/dislib
+  export USE_DATACLAY=1
 
-  # Note that this is needed also in master, so it must be put here (not in --pythonpath)
-  export PYTHONPATH=$PYTHONPATH:~/dislib
+  if [ "$COMPSS_WORKING_DIR" = "local_disk" ]; then
+    working_dir_params="--worker_working_dir=local_disk"
+  else
+    # $USER is "built-in", $GROUP is not
+    GROUP=$(id -g -n $USER)
+    COMPSS_WORKING_DIR=/gpfs/scratch/$GROUP/$USER
+    working_dir_params="--worker_working_dir=$COMPSS_WORKING_DIR --master_working_dir=$COMPSS_WORKING_DIR --base_log_dir=$COMPSS_WORKING_DIR"
+  fi
 
   # Enqueue job
   enqueue_compss \
+    --job_dependency=${job_dependency} \
     --job_name=csvm-split \
     --exec_time="${execution_time}" \
     --num_nodes="${num_nodes}" \
     \
     --cpus_per_node="${CPUS_PER_NODE}" \
     --worker_in_master_cpus="${WORKER_IN_MASTER}" \
-    --scheduler=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler \
+    --scheduler=$COMPSS_SCHEDULER \
     \
     "${workers_flag}" \
     \
-    --worker_working_dir=$WORKER_WORKING_DIR \
+    $working_dir_params \
     \
     --constraints=${constraints} \
     --tracing="${tracing}" \
@@ -86,19 +96,19 @@ EOF
     "${qos_flag}" \
     \
     --classpath=${DATACLAY_JAR} \
-    --pythonpath=${APP_PYTHONPATH}:${PYCLAY_PATH}:${PYTHONPATH} \
+    --pythonpath=${PYCLAY_PATH}:${APP_PYTHONPATH}:${DISLIB_TO_USE}:/gpfs/home/bsc25/bsc25865/tad4bj/src:${PYTHONPATH} \
     --storage_props=${STORAGE_PROPS} \
     --storage_home=$COMPSS_STORAGE_HOME \
     --prolog="tad4bj,setnow,start_ts" \
     --prolog="tad4bj,setdict,$TAD4BJ_JSON" \
-    --prolog="$DATACLAY_HOME/bin/dataclayprepare,$(pwd)/dislib_model/,$(pwd),dislib_model,python" \
+    --prolog="$DATACLAY_HOME/bin/dataclayprepare,$(pwd)/../dislib_model/,$(pwd),dislib_model,python" \
     --epilog="tad4bj,setnow,finish_ts" \
     \
     ${extra_tracing_flags} \
     \
     --lang=python \
     \
-    "$(pwd)/csvm_dc.py"
+    "$(pwd)/csvm.py"
 
 
 # To avoid the clean up of the working directory add this flag:

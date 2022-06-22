@@ -1,6 +1,7 @@
 {
   "fields": [
     ["id", "integer"],
+    ["tracing", "integer"],
     ["start_ts", "timestamp"],
     ["finish_ts", "timestamp"],
     ["dataclay", "integer"],
