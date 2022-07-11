@@ -22,18 +22,18 @@ from tad4bj.slurm import handler as tadh
 
 POINTS_PER_FRAGMENT = int(os.environ["POINTS_PER_FRAGMENT"])
 NUMBER_OF_FRAGMENTS = int(os.environ["NUMBER_OF_FRAGMENTS"])
-DIMENSIONS = int(os.getenv("DIMENSIONS", "30"))
+DIMENSIONS = int(os.getenv("DIMENSIONS", "20"))
 NUMBER_OF_CENTERS = int(os.getenv("NUMBER_OF_CENTERS", "15"))
-NUMBER_OF_CSVM_ITERATIONS = int(os.getenv("NUMBER_OF_CSVM_ITERATIONS", "10"))
+NUMBER_OF_CSVM_ITERATIONS = int(os.getenv("NUMBER_OF_CSVM_ITERATIONS", "5"))
 
 USE_DATACLAY = bool(int(os.environ["USE_DATACLAY"]))
 USE_SPLIT = bool(int(os.environ["USE_SPLIT"]))
 
-CASCADE_ARITY = int(os.getenv("REDUCTION_ARITY", "4"))
+CASCADE_ARITY = int(os.getenv("REDUCTION_ARITY", "48"))
 
 SEED = 42
 
-CHECK_RESULT = True
+CHECK_RESULT = False
 
 #############################################
 #############################################
@@ -77,7 +77,6 @@ def generate_points(num_points, num_centers, dim, seed, backend=None):
 
 
 def main():
-
     print(f"""Starting experiment with the following:
 
 POINTS_PER_FRAGMENT = {POINTS_PER_FRAGMENT}
