@@ -99,16 +99,16 @@ def round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
     if extra_args is None:
         extra_args = dict()
 
-    # for use_split in [0, 1]:
-    #     ea_to_use = extra_args.copy()
-    #     ea_to_use["use_split"] = use_split
+    for use_split in [0, 1]:
+        ea_to_use = extra_args.copy()
+        ea_to_use["use_split"] = use_split
 
-    #     build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
-    #                       extra_args=ea_to_use)
-    #     cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
-    #                         % (number_of_nodes, execution_time, str(tracing).lower()),
-    #                         shell=True, env=newenv, capture_output=True)
-    #     process_completed_job(cp)
+        build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
+                          extra_args=ea_to_use)
+        cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
+                            % (number_of_nodes, execution_time, str(tracing).lower()),
+                            shell=True, env=newenv, capture_output=True)
+        process_completed_job(cp)
 
     newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
 
@@ -130,10 +130,18 @@ if __name__ == "__main__":
 
     points_per_block = 500000
 
-    for i, x_per_worker in itertools.product([0, 1, 2, 3, 4], [24, 48]):
+    for i, fit_per_worker in itertools.product([0, 1, 2, 3, 4], [6]):
         n_workers = 2 ** i
-        n_blocks_fit = x_per_worker * n_workers
-        n_blocks_nn = x_per_worker * n_workers
+        n_blocks_fit = fit_per_worker * n_workers
+        n_blocks_nn = 24 * n_workers
 
         round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
-                       number_of_nodes=n_workers + 1, execution_time=30+x_per_worker*i)
+                       number_of_nodes=n_workers + 1, execution_time=10+10 * n_workers)
+
+    for fit_per_worker in [2, 4, 6, 8, 10, 12]:
+        n_workers = 8
+        n_blocks_fit = fit_per_worker * n_workers
+        n_blocks_nn = 24 * n_workers
+
+        round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
+                       number_of_nodes=n_workers + 1, execution_time=30 + 10 * fit_per_worker)

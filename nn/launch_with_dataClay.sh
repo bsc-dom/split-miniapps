@@ -45,8 +45,8 @@
   "computing_units": ${COMPUTING_UNITS},
   "use_split": ${USE_SPLIT},
   "points_per_block": ${POINTS_PER_BLOCK},
-  "n_blocks_fit": ${N_BLOCKS_NN},
-  "n_blocks_nn": ${N_BLOCKS_FIT}
+  "n_blocks_fit": ${N_BLOCKS_FIT},
+  "n_blocks_nn": ${N_BLOCKS_NN}
 }
 EOF
 
