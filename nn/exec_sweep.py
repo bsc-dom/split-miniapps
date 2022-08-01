@@ -21,7 +21,7 @@ COMPSS_ALTERNATIVE = {
 }
 
 
-def build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
+def build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn, copy_fit_struct=1,
                       compss_scheduler=FIFODLOCS,
                       compss_working_dir="local_disk",
                       number_of_steps=5, extra_args=None):
@@ -31,11 +31,12 @@ export POINTS_PER_BLOCK=%d
 export N_BLOCKS_FIT=%d
 export N_BLOCKS_NN=%d
 export NUMBER_OF_STEPS=%d
+export COPY_FIT_STRUCT=%d
 
 export COMPSS_SCHEDULER=%s
 export COMPSS_WORKING_DIR=%s
 
-""" % (points_per_block, n_blocks_fit, n_blocks_nn, number_of_steps,
+""" % (points_per_block, n_blocks_fit, n_blocks_nn, number_of_steps, copy_fit_struct,
        compss_scheduler, compss_working_dir))
 
         if extra_args:
@@ -103,7 +104,7 @@ def round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
         ea_to_use = extra_args.copy()
         ea_to_use["use_split"] = use_split
 
-        build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
+        build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn, copy_fit_struct=1,
                           extra_args=ea_to_use)
         cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
                             % (number_of_nodes, execution_time, str(tracing).lower()),

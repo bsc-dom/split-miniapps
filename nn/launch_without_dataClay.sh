@@ -43,6 +43,7 @@
   "compss_working_dir": "${COMPSS_WORKING_DIR}",
   "computing_units": ${COMPUTING_UNITS},
   "use_split": 0,
+  "copy_fit_struct": 0,
   "points_per_block": ${POINTS_PER_BLOCK},
   "n_blocks_fit": ${N_BLOCKS_FIT},
   "n_blocks_nn": ${N_BLOCKS_NN}

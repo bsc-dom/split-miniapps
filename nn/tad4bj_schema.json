@@ -6,6 +6,7 @@
     ["dataclay", "integer"],
     ["tracing", "integer"],
     ["use_split", "integer"],
+    ["copy_fit_struct", "integer"],
     ["num_threads", "integer"],
     ["nodes", "integer"],
     ["backends_per_node", "integer"],

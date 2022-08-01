@@ -72,6 +72,17 @@ class PersistentFitStructure(DataClayObject):
         return dist, self._itemindexes[ind]
         #            ^****** This converts the local indexes to global ones
 
+    @task(target_direction=IN, q_blocks={Type: COLLECTION_IN, Depth: 2}, returns=tuple)
+    @dclayMethod(q_blocks="list", n_neighbors="int", return_="anything")
+    def get_kneighbors_nocopy(self, q_blocks, n_neighbors):
+        q_samples = np.block(q_blocks)
+
+        # Note that the merge requires distances, so we ask for them
+        dist, ind = self._nn.kneighbors(X=q_samples, n_neighbors=n_neighbors)
+
+        return dist, self._itemindexes[ind]
+        #            ^****** This converts the local indexes to global ones
+
     @task(target_direction=IN, q_blocks={Type: COLLECTION_IN, Depth: 2}, returns=1)
     @dclayMethod(q_blocks="list", return_="str")
     def whatarethose(self, q_blocks):

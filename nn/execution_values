@@ -7,6 +7,7 @@ export N_BLOCKS_NN=48
 export NUMBER_OF_STEPS=5
 
 export USE_SPLIT=0
+export COPY_FIT_STRUCT=1
 
 #export COMPSS_SCHEDULER=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler
 #export COMPSS_WORKING_DIR=local_disk

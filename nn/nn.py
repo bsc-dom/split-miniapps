@@ -27,6 +27,7 @@ from tad4bj.slurm import handler as tadh
 #############################################
 USE_DATACLAY = bool(int(os.getenv("USE_DATACLAY", "0")))
 USE_SPLIT = bool(int(os.getenv("USE_SPLIT", "0")))
+COPY_FIT_STRUCT = bool(int(os.getenv("COPY_FIT_STRUCT", "1")))
 
 POINTS_PER_BLOCK = int(os.environ["POINTS_PER_BLOCK"])
 N_BLOCKS_FIT = int(os.environ["N_BLOCKS_FIT"])
@@ -129,7 +130,10 @@ class NearestNeighborsDataClay(BaseEstimator):
             queries = []
 
             for nn_fit_struct in self._fit_data:
-                queries.append(nn_fit_struct.get_kneighbors(q_row._blocks, n_neighbors))
+                if COPY_FIT_STRUCT:
+                    queries.append(nn_fit_struct.get_kneighbors(q_row._blocks, n_neighbors))
+                else:
+                    queries.append(nn_fit_struct.get_kneighbors_nocopy(q_row._blocks, n_neighbors))
 
             # compss_delete_object(q_samples)
             dist, ind = _merge_kqueries(n_neighbors, *queries)
@@ -178,6 +182,7 @@ NUMBER_OF_STEPS = {NUMBER_OF_STEPS}
 
 USE_DATACLAY = {USE_DATACLAY}
 USE_SPLIT = {USE_SPLIT}
+COPY_FIT_STRUCT = {COPY_FIT_STRUCT}
 """)
 
     start_time = time.time()
