@@ -9,7 +9,7 @@ EXECUTION_VALUES_FILE = "execution_values"
 STORAGE_PROPS_FILE = "cfgfiles/storage_props.cfg"
 
 # The flag is the literal string None for enqueue_compss
-LAST_GPFS_JOB = "None"
+LAST_GPFS_JOB = "25442352"
 
 # Schedulers:
 FIFODLOCS = "es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler"
@@ -131,18 +131,39 @@ if __name__ == "__main__":
 
     points_per_block = 500000
 
-    for i, fit_per_worker in itertools.product([0, 1, 2, 3, 4], [6]):
-        n_workers = 2 ** i
-        n_blocks_fit = fit_per_worker * n_workers
-        n_blocks_nn = 24 * n_workers
+    # for i, fit_per_worker in itertools.product([0, 1, 2, 3, 4], [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 6]):
+    #     n_workers = 2 ** i
+    #     n_blocks_fit = fit_per_worker * n_workers
+    #     n_blocks_nn = 24 * n_workers
 
-        round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
-                       number_of_nodes=n_workers + 1, execution_time=10+10 * n_workers)
+    #     round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
+    #                    number_of_nodes=n_workers + 1, execution_time=10+10 * n_workers)
 
-    for fit_per_worker in [2, 4, 6, 8, 10, 12]:
+    for fit_per_worker in [2, 4, 6, 8, 10, 12] * 20:
         n_workers = 8
         n_blocks_fit = fit_per_worker * n_workers
         n_blocks_nn = 24 * n_workers
 
         round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
-                       number_of_nodes=n_workers + 1, execution_time=30 + 10 * fit_per_worker)
+                       number_of_nodes=n_workers + 1, #execution_time=30 + 10 * fit_per_worker)
+                       execution_time=5)
+
+
+    ######################################################################################
+    # Everything that follows I believe that does not make sense for comparison
+    # (because it affects more the fit than the training and there is not enough data)
+    ######################################################################################
+
+    # # Worst case-ish
+    # for i in range(5):
+    #     n_workers = 2 ** i
+    #     n_blocks_fit = 2 * n_workers
+    #     n_blocks_nn = 48
+    #     round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
+    #                    number_of_nodes=n_workers + 1, execution_time=10 + 10 * n_workers)
+
+    #     round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
+    #                    number_of_nodes=n_workers + 1, execution_time=10 + 10 * n_workers)
+
+    #     round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
+    #                    number_of_nodes=n_workers + 1, execution_time=10 + 10 * n_workers)

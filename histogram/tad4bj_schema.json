@@ -4,15 +4,17 @@
     ["start_ts", "timestamp"],
     ["finish_ts", "timestamp"],
     ["dataclay", "integer"],
+    ["tracing", "integer"],
     ["nodes", "integer"],
     ["backends_per_node", "integer"],
     ["cpus_per_node", "integer"],
+    ["compss_scheduler", "string"],
+    ["compss_working_dir", "string"],
     ["initialization_time", "float"],
     ["iteration_time", "json"],
     ["points_per_fragment", "integer"],
     ["number_of_fragments", "integer"],
     ["use_split", "integer"],
-    ["use_reduction_decorator", "integer"],
-    ["roundrobin_persistence", "integer"]
+    ["use_active", "integer"]
   ]
 }

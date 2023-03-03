@@ -92,3 +92,9 @@ class PersistentBlock(DataClayObject):
             partials[center_idx][1] = indices.shape[0]
 
         return partials
+
+    @task(target_direction=IN, returns=object)
+    @dclayMethod(n_bins="int", n_dimensions="int", return_="numpy.ndarray")
+    def partial_histogram(self, n_bins, n_dimensions):
+        values, _ = np.histogramdd(self.block_data, n_bins, [(0, 1)] * n_dimensions)
+        return values
