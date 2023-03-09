@@ -51,7 +51,7 @@ class SplitPartitionHelper:
         return cycle(new_lists)
 
     def get_partitions(self):
-        return [dask.delayed(part) for part in self.all_partitions]
+        return [da.vstack(part).persist() for part in self.all_partitions]
 
 
 def dask_split(client, array, multiplicity=24):
@@ -89,7 +89,7 @@ _merge = dask.delayed(_direct_merge)
 
 @dask.delayed
 def partition_partial_sum(partition, centers):
-    inner_partials = [_partial_sum(block, centers) for block in partition]
+    inner_partials = [_partial_sum(block, centers) for block in partition.blocks]
 
     return _direct_merge(inner_partials)
 
@@ -159,11 +159,7 @@ DASK_RECHUNK = {DASK_RECHUNK}
     for _ in range(NUMBER_OF_KMEANS_ITERATIONS):
         centers = client.scatter(centers, broadcast=True)
         if USE_SPLIT:
-            partial_inner = [partition_partial_sum(part, centers) for part in partitions]
-
-            partial_merge = list()
-            for i in range(0, len(partial_inner), 24):
-                partial_merge.append(_merge(partial_inner[i:min(i+24, len(partial_inner))]))
+            partial_merge = [dask.delayed(_partial_sum)(part, centers) for part in partitions]
         else:
             partial_sums = x.map_blocks(_partial_sum, centers, dtype=object)
         
