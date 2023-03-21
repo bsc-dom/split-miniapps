@@ -15,6 +15,8 @@
     ["points_per_fragment", "integer"],
     ["number_of_fragments", "integer"],
     ["use_split", "integer"],
-    ["use_active", "integer"]
+    ["use_active", "integer"],
+    ["dask", "integer"],
+    ["dask_rechunk", "integer"]
   ]
 }

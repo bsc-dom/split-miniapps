@@ -24,6 +24,7 @@ COMPSS_ALTERNATIVE = {
 def build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn, copy_fit_struct=1,
                       compss_scheduler=FIFODLOCS,
                       compss_working_dir="local_disk",
+                      use_split=None, dask_rechunk=0,
                       number_of_steps=5, extra_args=None):
     with open(EXECUTION_VALUES_FILE, "w") as f:
         f.write("""
@@ -35,9 +36,12 @@ export COPY_FIT_STRUCT=%d
 
 export COMPSS_SCHEDULER=%s
 export COMPSS_WORKING_DIR=%s
-
+export DASK_RECHUNK=%d
 """ % (points_per_block, n_blocks_fit, n_blocks_nn, number_of_steps, copy_fit_struct,
-       compss_scheduler, compss_working_dir))
+       compss_scheduler, compss_working_dir, dask_rechunk))
+
+        if use_split is not None:
+            f.write("export USE_SPLIT=%d\n" % int(use_split))
 
         if extra_args:
             # At this point extra_args is neither None nor empty, assuming it is a populated dict
@@ -100,28 +104,45 @@ def round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
     if extra_args is None:
         extra_args = dict()
 
-    for use_split in [0, 1]:
-        ea_to_use = extra_args.copy()
-        ea_to_use["use_split"] = use_split
+    dask_rechunk = n_blocks_fit // (2 * (number_of_nodes - 1))
 
+    for dask_options in [{"use_split": False}, {"use_split": True}, {"use_split": False, "dask_rechunk": dask_rechunk}] * 3:
         build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn, copy_fit_struct=1,
-                          extra_args=ea_to_use)
-        cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
+                          extra_args=extra_args, **dask_options)
+        cp = subprocess.run("./launch_with_dask.sh %d %d %s"
                             % (number_of_nodes, execution_time, str(tracing).lower()),
                             shell=True, env=newenv, capture_output=True)
         process_completed_job(cp)
 
-    newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
+        build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn, copy_fit_struct=0,
+                          extra_args=extra_args, **dask_options)
+        cp = subprocess.run("./launch_with_dask.sh %d %d %s"
+                            % (number_of_nodes, execution_time, str(tracing).lower()),
+                            shell=True, env=newenv, capture_output=True)
+        process_completed_job(cp)
 
-    build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
-                      extra_args=extra_args, 
-                      **COMPSS_ALTERNATIVE)
-    cp = subprocess.run("./launch_without_dataClay.sh %d %d %s" 
-                        % (number_of_nodes, execution_time, str(tracing).lower()),
-                        shell=True, env=newenv, capture_output=True)
+    # for use_split in [0, 1]:
+    #     ea_to_use = extra_args.copy()
+    #     ea_to_use["use_split"] = use_split
 
-    LAST_GPFS_JOB = process_completed_job(cp)
-    print("Using %s for GPFS dependency (COMPSs executions)" % LAST_GPFS_JOB)
+    #     build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn, copy_fit_struct=1,
+    #                       extra_args=ea_to_use)
+    #     cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
+    #                         % (number_of_nodes, execution_time, str(tracing).lower()),
+    #                         shell=True, env=newenv, capture_output=True)
+    #     process_completed_job(cp)
+
+    # newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
+
+    # build_exec_values(points_per_block, n_blocks_fit, n_blocks_nn,
+    #                   extra_args=extra_args, 
+    #                   **COMPSS_ALTERNATIVE)
+    # cp = subprocess.run("./launch_without_dataClay.sh %d %d %s" 
+    #                     % (number_of_nodes, execution_time, str(tracing).lower()),
+    #                     shell=True, env=newenv, capture_output=True)
+
+    # LAST_GPFS_JOB = process_completed_job(cp)
+    # print("Using %s for GPFS dependency (COMPSs executions)" % LAST_GPFS_JOB)
 
 
 if __name__ == "__main__":
@@ -131,22 +152,22 @@ if __name__ == "__main__":
 
     points_per_block = 500000
 
-    # for i, fit_per_worker in itertools.product([0, 1, 2, 3, 4], [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 6]):
-    #     n_workers = 2 ** i
-    #     n_blocks_fit = fit_per_worker * n_workers
-    #     n_blocks_nn = 24 * n_workers
+    for i, fit_per_worker in itertools.product([0, 1, 2, 3], [2, 6]):
+        n_workers = 2 ** i
+        n_blocks_fit = fit_per_worker * n_workers
+        n_blocks_nn = 24 * n_workers
 
-    #     round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
-    #                    number_of_nodes=n_workers + 1, execution_time=10+10 * n_workers)
+        round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
+                       number_of_nodes=n_workers + 1, execution_time=10+10 * n_workers)
 
-    for fit_per_worker in [2, 4, 6, 8, 10, 12] * 20:
+    for fit_per_worker in [2, 4, 6, 8, 10, 12]:
         n_workers = 8
         n_blocks_fit = fit_per_worker * n_workers
         n_blocks_nn = 24 * n_workers
 
         round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
                        number_of_nodes=n_workers + 1, #execution_time=30 + 10 * fit_per_worker)
-                       execution_time=5)
+                       execution_time=10)
 
 
     ######################################################################################

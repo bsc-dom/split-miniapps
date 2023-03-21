@@ -240,9 +240,6 @@ COPY_FIT_STRUCT = {COPY_FIT_STRUCT}
     tadh["rotation_time"] = list()
     tadh.write_all()
 
-    # Uncomment that if you are only interested in evaluating fit_time
-    #return
-
     if USE_SPLIT:
         from dataclay.api import batch_object_info
         for obj, backend in batch_object_info(nn._fit_data).items():

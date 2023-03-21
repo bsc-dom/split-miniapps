@@ -4,6 +4,8 @@
     ["start_ts", "timestamp"],
     ["finish_ts", "timestamp"],
     ["dataclay", "integer"],
+    ["dask", "integer"],
+    ["dask_rechunk", "integer"],
     ["tracing", "integer"],
     ["nodes", "integer"],
     ["backends_per_node", "integer"],

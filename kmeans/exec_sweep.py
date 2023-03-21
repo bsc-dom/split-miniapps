@@ -27,7 +27,9 @@ def build_exec_values(points_per_fragment, number_of_fragments,
                       compss_scheduler=FIFODLOCS,
                       compss_working_dir="local_disk",
                       eval_split_overhead=None,
-                      use_split=None, compute_in_split=None, extra_args=None):
+                      use_split=None, compute_in_split=None, 
+                      dask_rechunk=0,
+                      extra_args=None):
     with open(EXECUTION_VALUES_FILE, "w") as f:
         f.write("""
 export POINTS_PER_FRAGMENT=%d
@@ -35,8 +37,9 @@ export NUMBER_OF_FRAGMENTS=%d
 
 export COMPSS_SCHEDULER=%s
 export COMPSS_WORKING_DIR=%s
+export DASK_RECHUNK=%d
 """ % (points_per_fragment, number_of_fragments,
-       compss_scheduler, compss_working_dir))
+       compss_scheduler, compss_working_dir, dask_rechunk))
     
         if use_split is not None:
             f.write("export USE_SPLIT=%d\n" % int(use_split))
@@ -101,24 +104,35 @@ def round_of_execs(points_per_fragment, number_of_fragments,
     if clear_qos_flag:
         newenv["QOS_FLAG"] = " "
 
-    for to_split in [True, False]:
+    dask_rechunk = BIG_POINTS_PER_FRAGMENT // points_per_fragment
+
+    for dask_options in [{"use_split": False}, {"use_split": True}, {"use_split": False, "dask_rechunk": dask_rechunk}] * 5:
         build_exec_values(points_per_fragment, number_of_fragments,
-                        use_split=to_split, compute_in_split=to_split, eval_split_overhead=eval_split_overhead,
-                        extra_args=extra_args)
-        cp = subprocess.run("./launch_with_dataClay.sh %d %d %s"
+                          compute_in_split=False,
+                          extra_args=extra_args, **dask_options)
+        cp = subprocess.run("./launch_with_dask.sh %d %d %s"
                             % (number_of_nodes, execution_time, str(tracing).lower()),
                             shell=True, env=newenv, capture_output=True)
-
         process_completed_job(cp)
 
-    newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
-    build_exec_values(points_per_fragment, number_of_fragments,
-                      use_split=False, compute_in_split=False,
-                      extra_args=extra_args, 
-                      **COMPSS_ALTERNATIVE)
-    cp = subprocess.run("./launch_without_dataClay.sh %d %d %s" 
-                        % (number_of_nodes, execution_time, str(tracing).lower()),
-                        shell=True, env=newenv, capture_output=True)
+    # for to_split in [True, False]:
+    #     build_exec_values(points_per_fragment, number_of_fragments,
+    #                     use_split=to_split, compute_in_split=to_split, eval_split_overhead=eval_split_overhead,
+    #                     extra_args=extra_args)
+    #     cp = subprocess.run("./launch_with_dataClay.sh %d %d %s"
+    #                         % (number_of_nodes, execution_time, str(tracing).lower()),
+    #                         shell=True, env=newenv, capture_output=True)
+
+    #     process_completed_job(cp)
+
+    # newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
+    # build_exec_values(points_per_fragment, number_of_fragments,
+    #                   use_split=False, compute_in_split=False,
+    #                   extra_args=extra_args, 
+    #                   **COMPSS_ALTERNATIVE)
+    # cp = subprocess.run("./launch_without_dataClay.sh %d %d %s" 
+    #                     % (number_of_nodes, execution_time, str(tracing).lower()),
+    #                     shell=True, env=newenv, capture_output=True)
 
     LAST_GPFS_JOB = process_completed_job(cp)
     print("Using %s for GPFS dependency (COMPSs executions)" % LAST_GPFS_JOB)

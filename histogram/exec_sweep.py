@@ -27,7 +27,9 @@ COMPSS_ALTERNATIVE = {
 def build_exec_values(points_per_fragment, number_of_fragments, 
                       compss_scheduler=FIFODLOCS,
                       compss_working_dir="local_disk",
-                      use_split=None, use_active=None, extra_args=None):
+                      use_split=None, use_active=None, 
+                      dask_rechunk=0,
+                      extra_args=None):
     with open(EXECUTION_VALUES_FILE, "w") as f:
         f.write("""
 export POINTS_PER_FRAGMENT=%d
@@ -35,8 +37,9 @@ export NUMBER_OF_FRAGMENTS=%d
 
 export COMPSS_SCHEDULER=%s
 export COMPSS_WORKING_DIR=%s
+export DASK_RECHUNK=%d
 """ % (points_per_fragment, number_of_fragments,
-       compss_scheduler, compss_working_dir))
+       compss_scheduler, compss_working_dir, dask_rechunk))
 
         if use_split is not None:
             f.write("export USE_SPLIT=%d\n" % int(use_split))
@@ -101,28 +104,39 @@ def round_of_execs(points_per_fragment, number_of_fragments,
     if extra_args is None:
         extra_args = dict()
 
-    for use_split, use_active in itertools.product([0, 1], [0, 1]):
-        ea_to_use = extra_args.copy()
-        ea_to_use["use_split"] = use_split
-        ea_to_use["use_active"] = use_active
+    dask_rechunk = BIG_POINTS_PER_FRAGMENT // points_per_fragment
 
+    #for dask_options in [{"use_split": False}, {"use_split": True}, {"use_split": False, "dask_rechunk": dask_rechunk}]:
+    for dask_options in [{"use_split": False}, {"use_split": True}] * 10:
         build_exec_values(points_per_fragment, number_of_fragments,
-                          extra_args=ea_to_use)
-        cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
+                          extra_args=extra_args, **dask_options)
+        cp = subprocess.run("./launch_with_dask.sh %d %d %s"
                             % (number_of_nodes, execution_time, str(tracing).lower()),
                             shell=True, env=newenv, capture_output=True)
-        
         process_completed_job(cp)
+        
+    # for use_split, use_active in itertools.product([0, 1], [0, 1]):
+    #     ea_to_use = extra_args.copy()
+    #     ea_to_use["use_split"] = use_split
+    #     ea_to_use["use_active"] = use_active
 
-    newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
+    #     build_exec_values(points_per_fragment, number_of_fragments,
+    #                       extra_args=ea_to_use)
+    #     cp = subprocess.run("./launch_with_dataClay.sh %d %d %s" 
+    #                         % (number_of_nodes, execution_time, str(tracing).lower()),
+    #                         shell=True, env=newenv, capture_output=True)
+        
+    #     process_completed_job(cp)
 
-    build_exec_values(points_per_fragment, number_of_fragments,
-                      use_split=False, use_active=False,
-                      extra_args=extra_args,
-                      **COMPSS_ALTERNATIVE)
-    cp = subprocess.run("./launch_without_dataClay.sh %d %d %s" 
-                        % (number_of_nodes, execution_time, str(tracing).lower()),
-                        shell=True, env=newenv, capture_output=True)
+    # newenv["JOB_DEPENDENCY"] = LAST_GPFS_JOB
+
+    # build_exec_values(points_per_fragment, number_of_fragments,
+    #                   use_split=False, use_active=False,
+    #                   extra_args=extra_args,
+    #                   **COMPSS_ALTERNATIVE)
+    # cp = subprocess.run("./launch_without_dataClay.sh %d %d %s" 
+    #                     % (number_of_nodes, execution_time, str(tracing).lower()),
+    #                     shell=True, env=newenv, capture_output=True)
 
     LAST_GPFS_JOB = process_completed_job(cp)
     print("Using %s for GPFS dependency (COMPSs executions)" % LAST_GPFS_JOB)

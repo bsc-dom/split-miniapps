@@ -1,11 +1,8 @@
-from itertools import product
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from scipy.stats import mstats
 from matplotlib.transforms import Bbox
 
 
@@ -45,11 +42,10 @@ def plot_things(data, y_col, estimator=ESTIMATOR_TO_USE, ylim=None, hue_order=No
     plt.suptitle("COMPSs executions")
     plt.show()
 
-    if "copy_fit_struct" in data or "use_active" in data:
-        filter_by = "copy_fit_struct" if "copy_fit_struct" in data else "use_active"
+    if "copy_fit_struct" in data:
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(12,10))
 
-        plotdata = data.query("(dataclay == 1) and (%s == 0)" % filter_by)
+        plotdata = data.query("(dataclay == 1) and (copy_fit_struct == 0)")
         sns.barplot(data=plotdata, x="nodes", hue="mode", y=y_col,
                     estimator=estimator, ax=ax1, palette="Set2")
         sns.violinplot(data=plotdata, x="nodes", hue="mode", y=y_col, 
@@ -58,12 +54,12 @@ def plot_things(data, y_col, estimator=ESTIMATOR_TO_USE, ylim=None, hue_order=No
     
         ax1.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
         ax2.get_legend().remove()
-        plt.suptitle("dataClay executions (no %s)" % filter_by)
+        plt.suptitle("dataClay executions (no copy on fit struct)")
         plt.show()
 
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(12,10))
 
-        plotdata = data.query("(dataclay == 1) and (%s == 1)" % filter_by)
+        plotdata = data.query("(dataclay == 1) and (copy_fit_struct == 1)")
         sns.barplot(data=plotdata, x="nodes", hue="mode", y=y_col,
                     estimator=estimator, ax=ax1, palette="Set2")
         sns.violinplot(data=plotdata, x="nodes", hue="mode", y=y_col, 
@@ -72,7 +68,7 @@ def plot_things(data, y_col, estimator=ESTIMATOR_TO_USE, ylim=None, hue_order=No
     
         ax1.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
         ax2.get_legend().remove()
-        plt.suptitle("dataClay executions (%s)" % filter_by)
+        plt.suptitle("dataClay executions (copy on fit struct")
         plt.show()
 
     else:
@@ -101,7 +97,7 @@ def save_tweaks(filename, big=False):
     plt.savefig(filename, bbox_inches=bbox)
 
 
-def prepare_df(db, list_of_jobid=[]):
+def prepare_df(db, list_of_jobid):
     df = db.to_dataframe().query("tracing == 0")
 
     df.loc[df['dataclay'] == 0, 'mode'] = 'COMPSs'
@@ -114,29 +110,5 @@ def prepare_df(db, list_of_jobid=[]):
 
         df.loc[(df['dataclay'] == 1) & (df['copy_fit_struct'] == 0), "mode"] += "[no copy]"
 
-    if "use_active" in df:
-        df.loc[(df['dataclay'] == 1) & (df['use_active'] == 1), "mode"] += "[active]"
-        df.loc[(df['dataclay'] == 1) & (df['use_active'] == 0), "mode"] += "[non-active]"
-
 
     return df[df.id.isin(list_of_jobid) == False]
-
-def winsorize_edf(edf, value_to_winsorize, grouping_cols):
-    # Prepare the intermediate structure that we will cartesian
-    cartesian = list()
-    for gcol in grouping_cols:
-        cartesian.append(edf[gcol].unique())
-
-    for unique_config in product(*cartesian):
-        # print("Doing %s" % (unique_config,))
-        working_df = edf[value_to_winsorize]
-        mask = working_df.notnull()
-        for gcol, value in zip(grouping_cols, unique_config):
-            # print("Filtering %s with value %s" % (gcol, value))
-            mask &= edf[gcol] == value
-
-        # Less than five values -> skip
-        if mask.sum() < 5:
-            continue
-
-        working_df[mask] = mstats.winsorize(working_df[mask], limits=[0, 0.1])

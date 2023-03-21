@@ -1,12 +1,13 @@
 # Sweep executions will overwrite this file, be aware!
 
-export POINTS_PER_BLOCK=500000
+export POINTS_PER_BLOCK=5000
 #export POINTS_PER_BLOCK=10000
-export N_BLOCKS_FIT=48
-export N_BLOCKS_NN=48
+export N_BLOCKS_FIT=12
+export N_BLOCKS_NN=12
 export NUMBER_OF_STEPS=5
 
-export USE_SPLIT=0
+export USE_SPLIT=1
+export DASK_RECHUNK=0
 export COPY_FIT_STRUCT=1
 
 #export COMPSS_SCHEDULER=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler

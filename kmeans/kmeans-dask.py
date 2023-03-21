@@ -1,11 +1,10 @@
-from collections import defaultdict
 from itertools import cycle
 import time
 import os
 
 import dask
 import dask.array as da
-from dask.distributed import wait, Client, futures_of
+from dask.distributed import wait, Client, get_worker
 import numpy as np
 from sklearn.metrics import pairwise_distances
 
@@ -37,30 +36,27 @@ PROFILE_SPLIT = bool(int(os.getenv("PROFILE_SPLIT", "0")))
 
 class SplitPartitionHelper:
     def __init__(self, multi):
-        self.all_partitions = list()
+        self.all_cycles = dict()
         self.multi = multi
+        self.worker_indexed = list()
 
-    def __call__(self):
-        """Generate k partitions, remember them, and return the cycle iterator.
-        
-        The number of partitions generated depends on the `multi` parameter given
-        to the constructor of this object.
-        """
-        new_lists = [list() for _ in range(self.multi)]
-        self.all_partitions.extend(new_lists)
-        return cycle(new_lists)
+    def __getitem__(self, key):
+        try:
+            return self.all_cycles[key]
+        except KeyError:
+            new_lists = [list() for _ in range(self.multi)]
+            self.all_cycles[key] = cycle(new_lists)
+            self.worker_indexed.extend((key, l) for l in new_lists)
+            return self.all_cycles[key]
 
     def get_partitions(self):
-        return [da.vstack(part).persist() for part in self.all_partitions]
+        return self.worker_indexed
 
 
 def dask_split(client, array, multiplicity=24):
     sph = SplitPartitionHelper(multiplicity)
-    worker_dict = defaultdict(sph)
-    for k, v in client.who_has(array).items():
-        _, idx, _ = k.split(',')
-        idx = int(idx.strip())
-        next(worker_dict[v[0]]).append(array.blocks[idx])
+    for f_str, v in client.who_has(array).items():
+        next(sph[v[0]]).append(f_str)
     return sph.get_partitions()
 
 
@@ -87,9 +83,9 @@ def _direct_merge(blocks):
 _merge = dask.delayed(_direct_merge)
 
 
-@dask.delayed
 def partition_partial_sum(partition, centers):
-    inner_partials = [_partial_sum(block, centers) for block in partition.blocks]
+    worker = get_worker()
+    inner_partials = [_partial_sum(worker.data[block], centers) for block in partition]
 
     return _direct_merge(inner_partials)
 
@@ -159,7 +155,7 @@ DASK_RECHUNK = {DASK_RECHUNK}
     for _ in range(NUMBER_OF_KMEANS_ITERATIONS):
         centers = client.scatter(centers, broadcast=True)
         if USE_SPLIT:
-            partial_merge = [dask.delayed(_partial_sum)(part, centers) for part in partitions]
+            partial_merge = [client.submit(partition_partial_sum, part, centers, workers=w) for w, part in partitions]
         else:
             partial_sums = x.map_blocks(_partial_sum, centers, dtype=object)
         

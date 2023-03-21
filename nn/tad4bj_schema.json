@@ -22,6 +22,8 @@
     ["split_overhead_time", "float"],
     ["points_per_block", "integer"],
     ["n_blocks_fit", "integer"],
-    ["n_blocks_nn", "integer"]
+    ["n_blocks_nn", "integer"],
+    ["dask", "integer"],
+    ["dask_rechunk", "integer"]
   ]
 }
