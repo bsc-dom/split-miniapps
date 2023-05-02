@@ -153,4 +153,4 @@ def winsorize_edf(edf, value_to_winsorize, grouping_cols):
         if mask.sum() < 5:
             continue
 
-        working_df[mask] = mstats.winsorize(working_df[mask], limits=[0, 0.1])
+        working_df[mask] = mstats.winsorize(working_df[mask], limits=[0, 0.3])
