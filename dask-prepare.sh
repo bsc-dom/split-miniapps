@@ -12,12 +12,19 @@ scheduler_file=~/dask-scheduler-$SLURM_JOB_ID.json
 
 
 cat <<EOF >~/.config/dask/distributed.yaml
+optimization:
+  fuse:
+    active: false  # required for P2P rechunking (see Histogram)
 distributed:
+  scheduler:
+    work-stealing: false
   worker:
+    transfer:
+      message-bytes-limit: 500MB
     memory:
       target: false  # don't spill to disk
       spill: false  # don't spill to disk
-      pause: 0.90  # pause execution at 80% memory use
+      pause: 0.80  # pause execution at 80% memory use
       terminate: 0.95  # restart the worker at 95% use
 EOF
 
@@ -26,6 +33,10 @@ ssh $scheduler "nohup ./anaconda3/bin/dask-scheduler --scheduler-file $scheduler
 
 for node in "${workers[@]}" ; do
     echo "Starting workers (one per socket) on $node"
-    ssh $node "nohup numactl --cpunodebind=0 --membind=0 -- ./anaconda3/bin/dask-worker --nworkers 1 --nthreads 24 --scheduler-file $scheduler_file --interface ib0 >$LOG_OUTPUT_DIR/dask-worker-0-$SLURM_JOB_ID.out 2>$LOG_OUTPUT_DIR/dask-worker-0-$SLURM_JOB_ID.err &"
-    ssh $node "nohup numactl --cpunodebind=1 --membind=1 -- ./anaconda3/bin/dask-worker --nworkers 1 --nthreads 24 --scheduler-file $scheduler_file --interface ib0 >$LOG_OUTPUT_DIR/dask-worker-1-$SLURM_JOB_ID.out 2>$LOG_OUTPUT_DIR/dask-worker-1-$SLURM_JOB_ID.err &"
+    ssh $node "nohup numactl --cpunodebind=0 --membind=0 -- ./anaconda3/bin/dask-worker --memory-limit 45GB --nworkers 1 --nthreads 24 --scheduler-file $scheduler_file --interface ib0 >$LOG_OUTPUT_DIR/dask-worker-0-$SLURM_JOB_ID.out 2>$LOG_OUTPUT_DIR/dask-worker-0-$SLURM_JOB_ID.err &" &
+    ssh $node "nohup numactl --cpunodebind=1 --membind=1 -- ./anaconda3/bin/dask-worker --memory-limit 45GB --nworkers 1 --nthreads 24 --scheduler-file $scheduler_file --interface ib0 >$LOG_OUTPUT_DIR/dask-worker-1-$SLURM_JOB_ID.out 2>$LOG_OUTPUT_DIR/dask-worker-1-$SLURM_JOB_ID.err &" &
 done
+
+echo "Waiting for all the ssh commands to finish . . ."
+wait
+echo "Dask should be ready-ish!"
