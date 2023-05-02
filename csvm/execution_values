@@ -1,9 +1,10 @@
 # Sweep executions will overwrite this file, be aware!
 
-export POINTS_PER_FRAGMENT=512
-export NUMBER_OF_FRAGMENTS=768
+export POINTS_PER_FRAGMENT=1024
+export NUMBER_OF_FRAGMENTS=384
 
 export USE_SPLIT=1
+export DASK_RECHUNK=0
 
 export COMPSS_SCHEDULER=es.bsc.compss.scheduler.fifodatalocation.FIFODataLocationScheduler
 export COMPSS_WORKING_DIR=local_disk

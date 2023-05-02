@@ -33,7 +33,7 @@ CASCADE_ARITY = int(os.getenv("REDUCTION_ARITY", "48"))
 
 SEED = 42
 
-CHECK_RESULT = False
+CHECK_RESULT = True
 
 #############################################
 #############################################

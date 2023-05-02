@@ -13,6 +13,8 @@
     ["execution_time", "json"],
     ["split_overhead_time", "float"],
     ["points_per_fragment", "integer"],
-    ["number_of_fragments", "integer"]
+    ["number_of_fragments", "integer"],
+    ["dask", "integer"],
+    ["dask_rechunk", "integer"]
   ]
 }
