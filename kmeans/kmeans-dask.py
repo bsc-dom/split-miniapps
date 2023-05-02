@@ -1,6 +1,7 @@
 from itertools import cycle
 import time
 import os
+from collections import defaultdict
 
 import dask
 import dask.array as da
@@ -38,7 +39,7 @@ class SplitPartitionHelper:
     def __init__(self, multi):
         self.all_cycles = dict()
         self.multi = multi
-        self.worker_indexed = list()
+        self.worker_indexed = dict()
 
     def __getitem__(self, key):
         try:
@@ -46,7 +47,7 @@ class SplitPartitionHelper:
         except KeyError:
             new_lists = [list() for _ in range(self.multi)]
             self.all_cycles[key] = cycle(new_lists)
-            self.worker_indexed.extend((key, l) for l in new_lists)
+            self.worker_indexed[key] = new_lists
             return self.all_cycles[key]
 
     def get_partitions(self):
@@ -90,13 +91,13 @@ def partition_partial_sum(partition, centers):
     return _direct_merge(inner_partials)
 
 
-@dask.delayed
 def _new_centers(premerge):
     merge_result = _direct_merge(premerge)
     centers = np.zeros((NUMBER_OF_CENTERS, DIMENSIONS))
     for idx, sum_ in enumerate(merge_result):
         centers[idx] = sum_[0] / sum_[1]
     return centers
+
 
 def main():
 
@@ -148,14 +149,18 @@ DASK_RECHUNK = {DASK_RECHUNK}
 
     if USE_SPLIT:
         print("Performing the split")
-        partitions = dask_split(client, x)
+        partitions_by_worker = dask_split(client, x)
 
     centers = np.random.random((NUMBER_OF_CENTERS, DIMENSIONS))
+    centers = client.scatter(centers, broadcast=True)
 
     for _ in range(NUMBER_OF_KMEANS_ITERATIONS):
-        centers = client.scatter(centers, broadcast=True)
         if USE_SPLIT:
-            partial_merge = [client.submit(partition_partial_sum, part, centers, workers=w) for w, part in partitions]
+            partial_merge = list()
+
+            for w, partitions in partitions_by_worker.items():
+                pre_partials = client.map(partition_partial_sum, partitions, [centers] * len(partitions), workers=w)
+                partial_merge.append(client.submit(_direct_merge, pre_partials))
         else:
             partial_sums = x.map_blocks(_partial_sum, centers, dtype=object)
         
@@ -165,8 +170,14 @@ DASK_RECHUNK = {DASK_RECHUNK}
             for i in range(0, blocks.shape[0], 50):
                 partial_merge.append(_merge([blocks[k] for k in range(i,min(i+50,blocks.shape[0]))]))
         
-        centers = _new_centers(partial_merge).compute()
+        if USE_SPLIT:
+            centers = client.submit(_new_centers, partial_merge)
+            centers_result = centers.result()
+        else:
+            centers_result = dask.delayed(_new_centers)(partial_merge).compute()
+            centers = client.scatter(centers_result)
 
+        
     end_t = time.time()
 
     kmeans_time = end_t - start_t
@@ -174,6 +185,8 @@ DASK_RECHUNK = {DASK_RECHUNK}
     tadh["iteration_time"].append(kmeans_time)
     tadh.write_all()
 
+    print("Computed centers:\n%s" % (centers_result,))
+    
 
 if __name__ == "__main__":
     main()

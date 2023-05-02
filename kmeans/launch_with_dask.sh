@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
   # Retrieve script arguments
-  num_nodes=${1:-3}
-  execution_time=${2:-60}
+  num_nodes=${1:-9}
+  execution_time=${2:-30}
   tracing=${3:-true}
 
   if [[ $tracing == "true" ]]  ; then
