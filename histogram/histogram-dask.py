@@ -33,7 +33,7 @@ class SplitPartitionHelper:
     def __init__(self, multi):
         self.all_cycles = dict()
         self.multi = multi
-        self.worker_indexed = list()
+        self.worker_indexed = dict()
 
     def __getitem__(self, key):
         try:
@@ -41,7 +41,7 @@ class SplitPartitionHelper:
         except KeyError:
             new_lists = [list() for _ in range(self.multi)]
             self.all_cycles[key] = cycle(new_lists)
-            self.worker_indexed.extend((key, l) for l in new_lists)
+            self.worker_indexed[key] = new_lists
             return self.all_cycles[key]
 
     def get_partitions(self):
@@ -57,6 +57,10 @@ def dask_split(client, array, multiplicity=24):
 
 @dask.delayed
 def sum_partials(partials):
+    return np.sum(partials, axis=0)
+
+
+def sum_partials_nodelayed(partials):
     return np.sum(partials, axis=0)
 
 
@@ -83,16 +87,20 @@ def histogram(client, experiment):
     partials = list()
 
     if DASK_RECHUNK > 0:
-        experiment = experiment.rechunk((POINTS_PER_FRAGMENT * DASK_RECHUNK, DIMENSIONS))
+        experiment = experiment.rechunk((POINTS_PER_FRAGMENT * DASK_RECHUNK, DIMENSIONS), method="p2p")
 
     if USE_SPLIT:
-        partitions = dask_split(client, experiment)
+        partitions_by_worker = dask_split(client, experiment)
 
-        for w, part in partitions:
+        for w, partitions in partitions_by_worker.items():
             # The function is pure, but we don't want Dask to cache results (because we are evaluating
             # the execution, not the cache). pure=False is a way to do avoid cache artificially
-            partial = client.submit(compute_partition, part, n_bins, workers=w, pure=False)
-            partials.append(partial)
+            pre_partials = client.map(compute_partition, partitions, [n_bins] * len(partitions), workers=w, pure=False)
+            partials.append(client.submit(sum_partials_nodelayed, pre_partials, workers=w, pure=False))
+        
+        result = client.submit(sum_partials_nodelayed, partials, pure=False)
+        return result.result()
+    
     else:
         inner_partials = experiment.map_blocks(partial_histogram, n_bins, DIMENSIONS, dtype=float)
         blocks = inner_partials.blocks
@@ -101,8 +109,8 @@ def histogram(client, experiment):
         for i in range(0, blocks.shape[0], 50):
             partials.append(sum_partials([blocks[k] for k in range(i, min(i+50, blocks.shape[0]))]))
 
-    result = sum_partials(partials)
-    return result.compute()
+        result = sum_partials(partials)
+        return result.compute()
 
 
 def main():

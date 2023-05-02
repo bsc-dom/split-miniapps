@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import itertools
 import re
 import os
 import subprocess
@@ -107,7 +106,7 @@ def round_of_execs(points_per_fragment, number_of_fragments,
     dask_rechunk = BIG_POINTS_PER_FRAGMENT // points_per_fragment
 
     #for dask_options in [{"use_split": False}, {"use_split": True}, {"use_split": False, "dask_rechunk": dask_rechunk}]:
-    for dask_options in [{"use_split": False}, {"use_split": True}] * 10:
+    for dask_options in [{"use_split": True}] * 5:
         build_exec_values(points_per_fragment, number_of_fragments,
                           extra_args=extra_args, **dask_options)
         cp = subprocess.run("./launch_with_dask.sh %d %d %s"
