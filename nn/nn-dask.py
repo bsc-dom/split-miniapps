@@ -1,15 +1,31 @@
 import os
 import time
+import sys
 from copy import copy
 
 import numpy as np
 
+import dask
 import dask.array as da
 from dask.distributed import wait, Client, get_worker
 
 from sklearn.neighbors import NearestNeighbors
 
 from tad4bj.slurm import handler as tadh
+
+# Let's MonkeyPatch ugly stuff into sklearn library!
+def __sizeof__(self):
+    return int(1.5 * (sys.getsizeof(self._fit_X) + sys.getsizeof(self._tree) + sys.getsizeof(self.n_samples_fit_)))
+# Explanation:
+# Dask relies on getsizeof, and sklearn does not provide a proper size. Dask thinks the nn data structure is tiny
+# and memory crashes happen in a spectacular fashion because of that.
+# Biggest data structures is _fit_X followed by the tree itself. The tree is also NOT providing a valid sizeof,
+# thus we add an empirical 1.5 factor to take into account the real size of the tree. 
+# This is ugly, but provides a good ballpark in the experiment sizes that are being tested for this evaluation.
+# Of course, a better approach should be decided. See https://github.com/scikit-learn/scikit-learn/pull/15526
+# for some discussion on support for that on the scikit-learn side.
+
+NearestNeighbors.__sizeof__ = __sizeof__
 
 
 #############################################
@@ -61,7 +77,7 @@ def dask_split(client, array):
     return sph.get_partitions()
 
 
-def _merge_kqueries(k, *queries):
+def _merge_kqueries(k, queries):
     # Reorganize and flatten
     dist, ind = zip(*queries)
     aggr_dist = np.hstack(dist)
@@ -105,7 +121,7 @@ def fit(client, x: da.Array):
         partitions = dask_split(client, x)
 
         for worker, (ind_ranges, block_ids) in partitions:
-            computation = client.submit(compute_nn_from_partition, block_ids, workers=[worker], pure=False)
+            computation = client.submit(compute_nn_from_partition, block_ids, workers=worker, pure=False)
 
             waitables.append(computation)
             result.append(
@@ -115,7 +131,7 @@ def fit(client, x: da.Array):
         result = list()
         waitables = list()
         for i, block in enumerate(x.blocks):
-            computation = compute_nn(block)
+            computation = dask.delayed(compute_nn)(block).persist()
             waitables.append(computation)
             result.append(
                 (None, computation,
@@ -146,27 +162,51 @@ def get_kneighbors(nn, block, ind_ranges, copy_fit_struct=False):
 def process_merge_results(merged_results):
     indices = list()
     dist = list()
-    for res in merged_results:
-        d, ind = res.result()
+    for d, ind in merged_results:
         dist.append(d)
         indices.append(ind)
     return np.vstack(dist), np.vstack(indices)
 
 
 def kneighbors(client, nn_struct, x):
+    # if USE_SPLIT:
+    #     return kneighbors_split(client, nn_struct, x)
+    
     merged_results = list()
 
     for block in x.blocks:
         queries = []
 
-        for worker, nn_fit, ind_ranges in nn_struct:
-            comp = client.submit(get_kneighbors, nn_fit, block, ind_ranges, COPY_FIT_STRUCT, workers=worker, pure=False)
+        for _, nn_fit, ind_ranges in nn_struct:
+            comp = dask.delayed(get_kneighbors)(nn_fit, block, ind_ranges, COPY_FIT_STRUCT)
             queries.append(comp)
 
         # This is a list of pairs, later process_merge_result waits and reorganizes
-        merged_results.append(client.submit(_merge_kqueries, 5, *queries, pure=False))
+        merged_results.append(dask.delayed(_merge_kqueries)(5, queries))
 
-    return process_merge_results(merged_results)
+    return process_merge_results(dask.compute(*merged_results))
+
+
+# def kneighbors_split(client, nn_struct, x):
+#     meta_queries = list()
+#     blocks = client.futures_of(x)
+#     n_blocks = len(blocks)
+
+#     # Makes sense to do the loops in reverse, so client.map can be used
+#     # and task submission is done more efficiently
+#     for worker, nn_fit, ind_ranges in nn_struct:
+#         # This is, effectively, looping block in x.blocks
+#         comp = client.map(get_kneighbors, 
+#                           [nn_fit] * n_blocks,
+#                           blocks,
+#                           [ind_ranges] * n_blocks,
+#                           [COPY_FIT_STRUCT] * n_blocks,
+#                           workers=worker,
+#                           pure=False)
+#         meta_queries.append(comp)
+
+#     merged_results = client.map(_merge_kqueries, [5] * len(meta_queries), meta_queries, pure=False)
+#     return process_merge_results(client.gather(merged_results))
 
 
 def main():
@@ -198,6 +238,7 @@ COPY_FIT_STRUCT = {COPY_FIT_STRUCT}
 
     x = x.persist()
     xq = xq.persist()
+
     wait(x)
     wait(xq)
 

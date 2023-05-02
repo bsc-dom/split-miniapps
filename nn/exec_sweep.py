@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     points_per_block = 500000
 
-    for i, fit_per_worker in itertools.product([0, 1, 2, 3], [2, 6]):
+    for i, fit_per_worker in itertools.product([0, 1, 2, 3, 4], [2, 6]):
         n_workers = 2 ** i
         n_blocks_fit = fit_per_worker * n_workers
         n_blocks_nn = 24 * n_workers
@@ -166,8 +166,8 @@ if __name__ == "__main__":
         n_blocks_nn = 24 * n_workers
 
         round_of_execs(points_per_block, n_blocks_fit, n_blocks_nn,
-                       number_of_nodes=n_workers + 1, #execution_time=30 + 10 * fit_per_worker)
-                       execution_time=10)
+                       number_of_nodes=n_workers + 1, execution_time=30 + 10 * fit_per_worker)
+                       #execution_time=10)
 
 
     ######################################################################################
