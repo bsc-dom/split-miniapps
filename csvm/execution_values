@@ -1,7 +1,7 @@
 # Sweep executions will overwrite this file, be aware!
 
-export POINTS_PER_FRAGMENT=1024
-export NUMBER_OF_FRAGMENTS=384
+export POINTS_PER_FRAGMENT=128
+export NUMBER_OF_FRAGMENTS=192
 
 export USE_SPLIT=1
 export DASK_RECHUNK=0

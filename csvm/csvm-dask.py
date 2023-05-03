@@ -205,6 +205,16 @@ def _train_partition(parted_x, parted_y, ids, extras=None):
         x = np.vstack(parted_x)
         y = np.hstack(parted_y)
 
+    # Code in _merge function, put here because reasons
+    _, uniques = np.unique(ids, return_index=True)
+    indices = np.argsort(uniques)
+    uniques = uniques[indices]
+
+    x = x[uniques]
+    y = y[uniques]
+    ids = ids[uniques]
+    # _merge is done
+
     clf.fit(x, y)
 
     sv = x[clf.support_]
@@ -224,6 +234,16 @@ def _train_reduction(q, return_clf=False):
     x = np.vstack(x_list)
     y = np.hstack(y_list)
     ids = np.hstack(ids_list)
+
+    # Code in _merge function, put here because reasons
+    _, uniques = np.unique(ids, return_index=True)
+    indices = np.argsort(uniques)
+    uniques = uniques[indices]
+
+    x = x[uniques]
+    y = y[uniques]
+    ids = ids[uniques]
+    # _merge is done
 
     clf.fit(x, y)
 
@@ -248,6 +268,16 @@ def _train(base_x, base_y, base_ids, extras=None):
     else:
         x, y, ids = base_x, base_y, base_ids
 
+    # Code in _merge function, put here because reasons
+    _, uniques = np.unique(ids, return_index=True)
+    indices = np.argsort(uniques)
+    uniques = uniques[indices]
+
+    x = x[uniques]
+    y = y[uniques]
+    ids = ids[uniques]
+    # _merge is done
+
     clf.fit(x, y)
 
     sv = x[clf.support_]
@@ -271,6 +301,16 @@ def _stack_and_train(q, return_clf=False):
     x = np.vstack(x_list)
     y = np.hstack(y_list)
     ids = np.hstack(ids_list)
+
+    # Code in _merge function, put here because reasons
+    _, uniques = np.unique(ids, return_index=True)
+    indices = np.argsort(uniques)
+    uniques = uniques[indices]
+
+    x = x[uniques]
+    y = y[uniques]
+    ids = ids[uniques]
+    # _merge is done
 
     clf.fit(x, y)
 

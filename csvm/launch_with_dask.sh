@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
   # Retrieve script arguments
-  num_nodes=${1:-9}
+  num_nodes=${1:-3}
   execution_time=${2:-10}
   tracing=${3:-true}
 
